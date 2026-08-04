@@ -22,6 +22,14 @@ const RES_WARN_MIN := 25.0
 const SOCIAL_WARN_MIN := 35.0
 const SOCIAL_BAD_MIN := 60.0
 
+## Estratos do Poço, do topo ao fundo. "" = sem sistema de recurso (a Coroa).
+const STRATA := [
+	{"sys": "", "title": "A Coroa", "tint": Color(0.11, 0.14, 0.20)},
+	{"sys": "Comida", "title": "Os Meios — Fazendas", "tint": Color(0.11, 0.17, 0.13)},
+	{"sys": "Ar", "title": "Os Meios — Filtragem", "tint": Color(0.11, 0.17, 0.13)},
+	{"sys": "Energia", "title": "As Entranhas — Gerador", "tint": Color(0.20, 0.16, 0.10)},
+]
+
 var game: SimGame
 var s: WorldState
 
@@ -31,10 +39,11 @@ var rebellion_bar_holder: VBoxContainer
 var attention_pips: Array[ColorRect] = []
 var attention_label: Label
 var turn_label: Label
-var truth_banner: PanelContainer
-var truth_banner_label: Label
 var log_label: RichTextLabel
-var residents_box: VBoxContainer
+var well_column: VBoxContainer
+var selection_panel: PanelContainer
+var selection_content: VBoxContainer
+var selected_id: int = -1
 var actions_box: HBoxContainer
 var advance_button: Button
 var end_panel: PanelContainer
@@ -67,25 +76,45 @@ func _build_ui() -> void:
 	add_child(root_layout)
 
 	_build_hud_panel()
-	truth_banner = _build_truth_banner()
-	root_layout.add_child(truth_banner)
 
-	var mid := HSplitContainer.new()
+	var mid := HBoxContainer.new()
 	mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mid.add_theme_constant_override("separation", 10)
 	root_layout.add_child(mid)
 
 	log_label = RichTextLabel.new()
 	log_label.bbcode_enabled = true
-	log_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	log_label.custom_minimum_size = Vector2(300, 0)
+	log_label.custom_minimum_size = Vector2(220, 0)
 	mid.add_child(log_label)
 
-	var residents_scroll := ScrollContainer.new()
-	residents_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mid.add_child(residents_scroll)
-	residents_box = VBoxContainer.new()
-	residents_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	residents_scroll.add_child(residents_box)
+	# --- eixo central (escada) + coluna do Poço ---
+	var well_row := HBoxContainer.new()
+	well_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	well_row.size_flags_stretch_ratio = 3.0
+	well_row.add_theme_constant_override("separation", 6)
+	mid.add_child(well_row)
+
+	var axis := ColorRect.new()
+	axis.color = Color(0.35, 0.38, 0.45)
+	axis.custom_minimum_size = Vector2(3, 0)
+	axis.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	well_row.add_child(axis)
+
+	var well_scroll := ScrollContainer.new()
+	well_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	well_row.add_child(well_scroll)
+	well_column = VBoxContainer.new()
+	well_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	well_column.add_theme_constant_override("separation", 6)
+	well_scroll.add_child(well_column)
+
+	selection_panel = PanelContainer.new()
+	selection_panel.custom_minimum_size = Vector2(200, 0)
+	selection_panel.add_theme_stylebox_override("panel", _panel_style())
+	mid.add_child(selection_panel)
+	selection_content = VBoxContainer.new()
+	selection_content.add_theme_constant_override("separation", 6)
+	selection_panel.add_child(selection_content)
 
 	advance_button = Button.new()
 	advance_button.text = "Avançar turno"
@@ -150,13 +179,6 @@ func _build_hud_panel() -> void:
 	rebellion_bar_holder = VBoxContainer.new()
 	rebellion_bar_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	social_box.add_child(rebellion_bar_holder)
-
-func _build_truth_banner() -> PanelContainer:
-	var panel := PanelContainer.new()
-	truth_banner_label = Label.new()
-	truth_banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	panel.add_child(truth_banner_label)
-	return panel
 
 func _section_title(text: String) -> Label:
 	var label := Label.new()
@@ -234,21 +256,17 @@ func _render() -> void:
 		c.queue_free()
 	rebellion_bar_holder.add_child(_build_rebellion_meter())
 
-	var knowers := s.count_state("sabe")
-	truth_banner.visible = knowers > 0
-	if knowers > 0:
-		truth_banner.add_theme_stylebox_override("panel", _danger_style())
-		truth_banner_label.text = "%d morador(es) sabem — aja" % knowers
-		truth_banner_label.add_theme_color_override("font_color", Color(1, 0.9, 0.9))
-
 	log_label.clear()
 	for line in s.log_lines:
 		log_label.append_text(line + "\n")
 
-	for c in residents_box.get_children():
+	for c in well_column.get_children():
 		c.queue_free()
-	for r in s.residents:
-		residents_box.add_child(_build_resident_row(r))
+	for stratum in STRATA:
+		well_column.add_child(_build_floor(stratum["sys"], stratum["title"], stratum["tint"]))
+	well_column.add_child(_build_reserve_panel())
+
+	_render_selection()
 
 	end_panel.visible = s.over
 	if s.over:
@@ -334,49 +352,173 @@ func _meter_color(value: float, inverted: bool) -> Color:
 			return METER_WARN
 		return METER_BAD
 
-func _state_color(r: Resident) -> Color:
-	if r.isolated:
-		return ISOLATED_COLOR
+## Cor "de verdade" do morador (ignora isolamento — usada na borda da célula
+## de um isolado, para que se veja o que ele sabe além do fato de estar isolado).
+func _truth_color(r: Resident) -> Color:
 	if r.state == "sabe":
 		return KNOW_COLOR
 	if r.state == "desconfiada":
 		return DOUBT_COLOR
 	return OK_COLOR
 
-func _build_resident_row(r: Resident) -> Control:
-	var row := HBoxContainer.new()
+func _state_color(r: Resident) -> Color:
+	if r.isolated:
+		return ISOLATED_COLOR
+	return _truth_color(r)
 
-	var dot := ColorRect.new()
-	dot.custom_minimum_size = Vector2(12, 12)
-	dot.color = _state_color(r)
-	row.add_child(dot)
+func _floor_style(tint: Color, crisis: bool) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = tint.lerp(DANGER_COLOR, 0.35) if crisis else tint
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	return style
 
-	var label := Label.new()
+## Um andar-setor da coluna do Poço. sys == "" monta a Coroa (sem recurso,
+## só alerta da verdade + última linha do registro).
+func _build_floor(sys: String, title: String, tint: Color) -> Control:
+	var crisis: bool = sys != "" and s.res[sys] < RES_WARN_MIN
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _floor_style(tint, crisis))
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	panel.add_child(col)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
+	col.add_child(header)
+
+	var title_label := Label.new()
+	title_label.text = title
+	title_label.custom_minimum_size = Vector2(170, 0)
+	header.add_child(title_label)
+
+	if sys == "":
+		var knowers := s.count_state("sabe")
+		var alert := Label.new()
+		if knowers > 0:
+			alert.text = "%d morador(es) sabem — aja" % knowers
+			alert.add_theme_color_override("font_color", KNOW_COLOR)
+		else:
+			alert.text = "Tudo calmo."
+			alert.add_theme_color_override("font_color", Color(0.6, 0.65, 0.6))
+		header.add_child(alert)
+		var last_line := Label.new()
+		last_line.text = s.log_lines[-1] if not s.log_lines.is_empty() else ""
+		last_line.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+		col.add_child(last_line)
+		return panel
+
+	header.add_child(_build_meter(sys, s.res[sys], false))
+	var stats := Label.new()
+	stats.text = "trabalhadores: %d — líquido/turno: %+.1f" % [s.active_workers(sys), s.net_delta(sys)]
+	header.add_child(stats)
+
+	var cells := HFlowContainer.new()
+	cells.add_theme_constant_override("h_separation", 4)
+	cells.add_theme_constant_override("v_separation", 4)
+	col.add_child(cells)
+	for r in s.residents:
+		if r.job == sys:
+			cells.add_child(_build_cell(r))
+
+	return panel
+
+func _build_reserve_panel() -> Control:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel_style())
+	var col := VBoxContainer.new()
+	panel.add_child(col)
+	col.add_child(_section_title("Reserva (sem posto)"))
+	var cells := HFlowContainer.new()
+	cells.add_theme_constant_override("h_separation", 4)
+	cells.add_theme_constant_override("v_separation", 4)
+	col.add_child(cells)
+	for r in s.residents:
+		if r.job == "":
+			cells.add_child(_build_cell(r))
+	return panel
+
+## Célula clicável de um morador, colorida pelo estágio de verdade.
+## Isolados mantêm a cor de fundo neutra mas ganham uma borda com a cor
+## "de verdade" — dá para ver estado E isolamento na mesma célula.
+func _build_cell(r: Resident) -> Button:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(34, 26)
+	btn.text = r.given_name.substr(0, 2)
 	var job_text := r.job if r.job != "" else "sobressalente"
 	var state_text := "sabe" if r.state == "sabe" else ("desconfia" if r.state == "desconfiada" else "tranquila")
+	btn.tooltip_text = "%s — %s — %s%s" % [r.given_name, job_text, state_text, " (isolada)" if r.isolated else ""]
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = _state_color(r)
 	if r.isolated:
-		state_text += " (isolada)"
-	label.text = "%s — %s — %s" % [r.given_name, job_text, state_text]
-	label.custom_minimum_size = Vector2(260, 0)
-	row.add_child(label)
+		style.border_color = _truth_color(r)
+		style.border_width_left = 2
+		style.border_width_right = 2
+		style.border_width_top = 2
+		style.border_width_bottom = 2
+	if r.id == selected_id:
+		style.border_color = Color(1, 1, 1)
+		style.border_width_left = 2
+		style.border_width_right = 2
+		style.border_width_top = 2
+		style.border_width_bottom = 2
+	btn.add_theme_stylebox_override("normal", style)
+	btn.pressed.connect(_on_select_resident.bind(r))
+	return btn
+
+func _on_select_resident(r: Resident) -> void:
+	selected_id = r.id
+	_render()
+
+## Redesenha o painel de ação contextual do morador selecionado.
+func _render_selection() -> void:
+	for c in selection_content.get_children():
+		c.queue_free()
+
+	var r: Resident = s.find_by_id(selected_id)
+	if r == null:
+		var hint := Label.new()
+		hint.text = "Clique num morador na coluna do Poço para ver detalhes e agir."
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD
+		selection_content.add_child(hint)
+		return
+
+	var name_label := Label.new()
+	name_label.text = r.given_name
+	selection_content.add_child(name_label)
+
+	var job_text := r.job if r.job != "" else "sobressalente"
+	var info := Label.new()
+	info.text = job_text
+	info.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+	selection_content.add_child(info)
+
+	var state_text := "sabe" if r.state == "sabe" else ("desconfia" if r.state == "desconfiada" else "tranquila")
+	var state_label := Label.new()
+	state_label.text = state_text + (" (isolada)" if r.isolated else "")
+	state_label.add_theme_color_override("font_color", _truth_color(r))
+	selection_content.add_child(state_label)
 
 	if r.isolated:
 		var reintegrate_btn := Button.new()
 		reintegrate_btn.text = "Reintegrar"
 		reintegrate_btn.disabled = s.attention <= 0
 		reintegrate_btn.pressed.connect(_on_reintegrate.bind(r))
-		row.add_child(reintegrate_btn)
+		selection_content.add_child(reintegrate_btn)
 	else:
 		var isolate_btn := Button.new()
 		isolate_btn.text = "Isolar"
 		isolate_btn.disabled = s.attention <= 0
 		isolate_btn.pressed.connect(_on_isolate.bind(r))
-		row.add_child(isolate_btn)
+		selection_content.add_child(isolate_btn)
+
 	var exile_btn := Button.new()
 	exile_btn.text = "Exilar"
 	exile_btn.disabled = s.attention <= 0
 	exile_btn.add_theme_stylebox_override("normal", _danger_style())
 	exile_btn.pressed.connect(_on_exile.bind(r))
-	row.add_child(exile_btn)
-
-	return row
+	selection_content.add_child(exile_btn)
