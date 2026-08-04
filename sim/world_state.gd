@@ -17,7 +17,8 @@ var residents: Array[Resident] = []
 var exiles: int = 0
 var exiled_names: Array[String] = []
 var rng: SeededRng
-var log_lines: Array[String] = []
+var log_lines: Array[String] = []       # registro mecânico (turnos, ações, números)
+var story_log_lines: Array[String] = [] # feed narrativo (micro-histórias, Parte B)
 var over: bool = false
 var won: bool = false
 var end_reason: String = ""

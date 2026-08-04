@@ -35,6 +35,11 @@ func new_game(seed_value: int = 0) -> WorldState:
 func _log(t: String) -> void:
 	s.log_lines.push_front(t)
 
+## Empurra uma linha no feed narrativo (micro-histórias, Parte B). Puramente
+## cosmético — nunca chamado a partir de código que altera medidores.
+func _story(t: String) -> void:
+	s.story_log_lines.push_front(t)
+
 func _spare() -> Resident:
 	for r in s.residents:
 		if r.job == "" and not r.isolated:

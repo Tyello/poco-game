@@ -39,7 +39,7 @@ var rebellion_bar_holder: VBoxContainer
 var attention_pips: Array[ColorRect] = []
 var attention_label: Label
 var turn_label: Label
-var log_label: RichTextLabel
+var log_label: RichTextLabel        # coluna esquerda: feed de micro-histórias (Parte B)
 var well_column: VBoxContainer
 var selection_panel: PanelContainer
 var selection_content: VBoxContainer
@@ -257,7 +257,9 @@ func _render() -> void:
 	rebellion_bar_holder.add_child(_build_rebellion_meter())
 
 	log_label.clear()
-	for line in s.log_lines:
+	if s.story_log_lines.is_empty():
+		log_label.append_text("O diário do Poço ainda está em branco.\n")
+	for line in s.story_log_lines:
 		log_label.append_text(line + "\n")
 
 	for c in well_column.get_children():
@@ -405,10 +407,15 @@ func _build_floor(sys: String, title: String, tint: Color) -> Control:
 			alert.text = "Tudo calmo."
 			alert.add_theme_color_override("font_color", Color(0.6, 0.65, 0.6))
 		header.add_child(alert)
-		var last_line := Label.new()
-		last_line.text = s.log_lines[-1] if not s.log_lines.is_empty() else ""
-		last_line.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-		col.add_child(last_line)
+		var crown_log := RichTextLabel.new()
+		crown_log.bbcode_enabled = true
+		crown_log.custom_minimum_size = Vector2(0, 110)
+		for line in s.log_lines:
+			crown_log.append_text(line + "\n")
+		var log_scroll := ScrollContainer.new()
+		log_scroll.custom_minimum_size = Vector2(0, 110)
+		log_scroll.add_child(crown_log)
+		col.add_child(log_scroll)
 		return panel
 
 	header.add_child(_build_meter(sys, s.res[sys], false))
