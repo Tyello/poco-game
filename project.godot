@@ -15,5 +15,6 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="O Poço"
-config/description="Survival/management vertical. Núcleo de simulação (Fase 1) — headless, sem UI ainda."
+config/description="Survival/management vertical. Vista em corte lateral (Fase 2) sobre o núcleo de simulação."
+run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7")
