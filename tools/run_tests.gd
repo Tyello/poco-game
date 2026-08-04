@@ -34,6 +34,8 @@ func _run_all() -> void:
 	test_traits_assigned()
 	test_bonds_deterministic()
 	test_trait_modifiers_neutral()
+	test_stories_dont_affect_meters()
+	test_exile_prioritizes_bond()
 
 # --------------------------------------------------------------- testes
 
@@ -141,6 +143,55 @@ func test_bonds_deterministic() -> void:
 ## ignorando a verdade não mudou.
 func test_trait_modifiers_neutral() -> void:
 	_check(Balance.TRAIT_MOD_CETICO_SPONT == 0.0 and Balance.TRAIT_MOD_DEVOTO_SPONT == 0.0, "modificadores mecânicos de traço neutros por padrão")
+
+func test_stories_dont_affect_meters() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(3)
+	var res_before := s.res.duplicate()
+	var sus_before := s.suspicion
+	var reb_before := s.rebellion
+	var r := s.residents[0]
+	Story.on_knows(s, r)
+	Story.on_isolate(s, r)
+	Story.on_exile(s, r, s.bonded_with(r.id))
+	Story.on_calm_moment(s, r)
+	_check(s.res == res_before and s.suspicion == sus_before and s.rebellion == reb_before, "gerar micro-histórias não altera recursos/suspeita/rebelião")
+
+## Quando o exilado tem um vínculo "ok" elegível e o efeito mártir rola,
+## o alvo convertido deve ser o vínculo — não um aleatório qualquer.
+func test_exile_prioritizes_bond() -> void:
+	var found_case := false
+	for seed_value in range(50):
+		var g := SimGame.new()
+		var s := g.new_game(seed_value)
+		var target: Resident = null
+		for r in s.residents:
+			if r.state == "ok":
+				for bid in s.bonded_with(r.id):
+					var partner := s.find_by_id(bid)
+					if partner != null and partner.state == "ok":
+						target = r
+						break
+			if target != null:
+				break
+		if target == null:
+			continue
+		var bonded_ids := s.bonded_with(target.id)
+		var before_doubt := {}
+		for r in s.residents_where("desconfiada", false):
+			before_doubt[r.id] = true
+		g.exile(target)
+		var new_doubters: Array = []
+		for r in s.residents_where("desconfiada", false):
+			if not before_doubt.has(r.id):
+				new_doubters.append(r.id)
+		if new_doubters.is_empty():
+			continue
+		found_case = true
+		_check(new_doubters[0] in bonded_ids, "exílio com vínculo elegível converte o vínculo, não aleatório (seed %d)" % seed_value)
+		break
+	if not found_case:
+		_check(true, "exílio prioriza vínculo (nenhum caso de conversão nas 50 seeds testadas, pulado)")
 
 # --------------------------------------------------------- utilidades
 

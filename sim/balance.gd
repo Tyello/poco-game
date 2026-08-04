@@ -77,3 +77,6 @@ const BOND_PAIRS := 4            # nº de vínculos (família/amizade) gerados e
 # apenas para não obrigar a mexer em balance.gd quando forem ligados.
 const TRAIT_MOD_CETICO_SPONT := 0.0  # cético: pressão de base de desconfiança
 const TRAIT_MOD_DEVOTO_SPONT := 0.0  # devoto: idem, sentido oposto
+
+# --- Micro-histórias (Fase 3) — cosmético, nunca altera medidores ---
+const STORY_CALM_MOMENT_CHANCE := 0.35 # chance/turno de uma cena de rotina no feed

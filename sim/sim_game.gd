@@ -117,6 +117,7 @@ func isolate(r: Resident) -> bool:
 	r.isolated = true
 	s.suspicion = clampf(s.suspicion + Balance.ISOLATE_SUS, 0.0, 100.0)
 	_log("%s isolada, fora do posto de %s. Não contamina, mas segue consumindo." % [r.given_name, job])
+	_story(Story.on_isolate(s, r))
 	if job != "":
 		_backfill(job)
 	return true
@@ -126,6 +127,7 @@ func exile(r: Resident) -> bool:
 		return false
 	s.attention -= 1
 	var job := r.job
+	var bonded_ids := s.bonded_with(r.id)
 	s.residents.erase(r)
 	s.exiles += 1
 	s.exiled_names.append(r.given_name)
@@ -133,12 +135,24 @@ func exile(r: Resident) -> bool:
 	s.suspicion = clampf(s.suspicion + Balance.EXILE_SUS, 0.0, 100.0)
 	s.martyr_floor = minf(Balance.MARTYR_FLOOR_CAP, s.martyr_floor + Balance.EXILE_MARTYR_FLOOR)
 	_log("[Saída] %s condenada à Saída. Piso permanente de revolta agora %d." % [r.given_name, int(s.martyr_floor)])
+	for line in Story.on_exile(s, r, bonded_ids):
+		_story(line)
 	if s.rng.chance(Balance.EXILE_CONVERT_CHANCE):
 		var oks := s.residents_where("ok", false)
-		if not oks.is_empty():
-			var t = s.rng.pick(oks)
+		# Mesma probabilidade/magnitude de sempre: só muda QUEM é alvo,
+		# priorizando um vínculo do exilado quando existir (Parte C).
+		var bonded_oks: Array = []
+		for o in oks:
+			if o.id in bonded_ids:
+				bonded_oks.append(o)
+		var t = s.rng.pick(bonded_oks) if not bonded_oks.is_empty() else s.rng.pick(oks)
+		if t != null:
 			t.state = "desconfiada"
-			_log("A Saída de %s não passou despercebida: %s começou a desconfiar." % [r.given_name, t.given_name])
+			if t.id in bonded_ids:
+				_log("A Saída do vínculo de %s fez %s começar a desconfiar." % [r.given_name, t.given_name])
+				_story("A Saída de %s partiu o coração de %s." % [r.given_name, t.given_name])
+			else:
+				_log("A Saída de %s não passou despercebida: %s começou a desconfiar." % [r.given_name, t.given_name])
 	if job != "":
 		_backfill(job)
 	return true
@@ -178,6 +192,7 @@ func advance_turn() -> void:
 					var t = s.rng.pick(doubters)
 					t.state = "sabe"
 					_log("%s passou de desconfiada a SABER." % t.given_name)
+					_story(Story.on_knows(s, t))
 				elif not oks.is_empty():
 					var t2 = s.rng.pick(oks)
 					t2.state = "desconfiada"
@@ -195,6 +210,7 @@ func advance_turn() -> void:
 		if s.rng.chance(self_adv):
 			r.state = "sabe"
 			_log("%s juntou as peças sozinha — agora sabe." % r.given_name)
+			_story(Story.on_knows(s, r))
 
 	# 2c. Isolados vazam boatos ("os que somem")
 	var iso := s.residents_where("sabe", true)
@@ -206,6 +222,13 @@ func advance_turn() -> void:
 				if not oks3.is_empty():
 					var t4 = s.rng.pick(oks3)
 					t4.state = "desconfiada"
+
+	# 2d. Momento tranquilo (cosmético — não lê nem altera nenhum medidor)
+	if s.rng.chance(Balance.STORY_CALM_MOMENT_CHANCE):
+		var calm_pool := s.residents_where("ok", false)
+		if not calm_pool.is_empty():
+			var p = s.rng.pick(calm_pool)
+			_story(Story.on_calm_moment(s, p))
 
 	# 3. Suspeita
 	var kc := s.count_state("sabe")
