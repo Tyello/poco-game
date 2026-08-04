@@ -1,0 +1,15 @@
+# Godot 4
+.godot/
+/android/
+/build/
+export_presets.cfg
+*.translation
+
+# Exportações
+*.exe
+*.pck
+*.zip
+
+# Sistema
+.DS_Store
+Thumbs.db

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O Poço — Teste de Loop v5</title>
+<style>
+  :root{
+    --bg:#14161a; --panel:#1c1f26; --panel2:#232733; --line:#333a47;
+    --txt:#e7e9ee; --mut:#9aa2b1; --dim:#6b7382;
+    --ok:#1d9e75; --warn:#ba7517; --bad:#e24b4a; --acc:#378add; --truth:#a07bd6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;}
+  .wrap{max-width:940px;margin:0 auto;padding:20px 16px 60px;}
+  h1{font-size:22px;font-weight:600;margin:0;}
+  h2{font-size:14px;font-weight:600;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;}
+  .sub{color:var(--mut);font-size:13px;margin:2px 0 0;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:14px;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .col{flex:1;min-width:250px;}
+  .meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+  .m{background:var(--panel2);border-radius:8px;padding:9px 11px;position:relative;}
+  .m .lbl{font-size:12px;color:var(--mut);display:flex;justify-content:space-between;}
+  .m .val{font-size:19px;font-weight:600;margin-top:2px;}
+  .m .trend{font-size:11px;color:var(--dim);}
+  .bar{height:6px;border-radius:3px;background:#0e1014;margin-top:6px;overflow:hidden;position:relative;}
+  .bar > i{display:block;height:100%;border-radius:3px;}
+  .bar > .floor{position:absolute;top:-2px;bottom:-2px;width:2px;background:#f0a0a0;}
+  button{font-family:inherit;font-size:13px;color:var(--txt);background:#2a2f3a;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;transition:.12s;}
+  button:hover:not(:disabled){background:#333a47;border-color:#475061;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  button.pri{background:var(--acc);border-color:var(--acc);color:#fff;}
+  button.danger{border-color:#7a2c2c;color:#f0a0a0;}
+  button.danger:hover:not(:disabled){background:#3a1e1e;}
+  .actline{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--panel2);border-radius:8px;padding:8px 11px;margin-bottom:8px;}
+  .actline .t{font-size:13px;}
+  .actline .cost{color:var(--dim);font-size:12px;}
+  .people{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;}
+  .p{background:var(--panel2);border-radius:8px;padding:9px 10px;font-size:13px;border:1px solid transparent;cursor:pointer;}
+  .p:hover{border-color:#475061;}
+  .p.sel{border-color:var(--acc);}
+  .p.sabe{border-left:3px solid var(--truth);}
+  .p.desconf{border-left:3px solid var(--warn);}
+  .p.iso{border-left:3px solid var(--acc);}
+  .p .nm{font-weight:600;}
+  .p .jb{font-size:11px;color:var(--dim);}
+  .p .st{font-size:11px;margin-top:3px;}
+  .st.k{color:var(--truth);} .st.d{color:var(--warn);} .st.o{color:var(--ok);} .st.iso{color:var(--acc);}
+  .att{display:inline-flex;gap:5px;align-items:center;vertical-align:middle;}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--acc);}
+  .dot.off{background:#333a47;}
+  .log{font-size:13px;color:var(--mut);max-height:150px;overflow:auto;}
+  .log div{padding:2px 0;border-bottom:1px solid #22262f;}
+  .sel-panel{background:#20242e;border:1px solid var(--acc);border-radius:10px;padding:12px;margin-top:10px;}
+  .sel-panel .opts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .end{padding:22px 4px;}
+  .end .big{font-size:26px;font-weight:700;margin-bottom:6px;text-align:center;}
+  .end .msg{color:var(--mut);text-align:center;margin-bottom:16px;}
+  .end .r{color:var(--mut);max-width:640px;margin:0 auto;font-size:14px;}
+  .end .r b{color:var(--txt);}
+  .hidden{display:none;}
+  .pill{display:inline-block;background:#0e1014;border-radius:20px;padding:3px 10px;font-size:12px;color:var(--mut);}
+  .note{font-size:12px;color:var(--dim);margin-top:8px;}
+  .help{background:#191d24;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:12.5px;color:var(--mut);margin-top:12px;}
+  .help b{color:var(--txt);}
+  .help .k{color:var(--truth);} .help .a{color:var(--acc);}
+  .alert{background:#241f2e;border:1px solid var(--truth);border-radius:8px;padding:8px 11px;font-size:13px;color:#d9c8f2;margin:0 0 10px;}
+  .alert.calm{background:#17251f;border-color:#2f5a49;color:#a9d8c6;}
+  .sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:12px 0;}
+  .sumcell{background:var(--panel2);border-radius:8px;padding:9px 11px;}
+  .sumcell .l{font-size:11px;color:var(--mut);} .sumcell .v{font-size:18px;font-weight:600;}
+  .taglist{font-size:12.5px;color:var(--mut);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h1>O Poço — teste de loop <span style="font-size:13px;color:var(--dim)">v5</span></h1>
+      <p class="sub">A verdade sempre vaza — você não impede, só decide o que fazer com quem descobre.</p>
+    </div>
+    <div style="text-align:right;">
+      <div class="pill">Turno <span id="turn">1</span> / 14</div>
+      <div style="margin-top:6px;font-size:13px;color:var(--txt);">Ações: <b><span id="attNum">3</span></b> de 3 &nbsp;<span class="att" id="attDots"></span></div>
+    </div>
+  </div>
+
+  <div class="help">
+    <b>Como jogar:</b> 3 ações por turno, divididas entre <b>recursos</b> e <b>verdade</b>. Você <b>não</b> consegue impedir que a verdade se espalhe (a mentira envelhece e as pessoas descobrem sozinhas) — só decidir o que fazer com quem descobre:<br>
+    · <b class="a">Isolar</b> um morador: tira-o do posto (o sobressalente cobre), então ele <b>para de contaminar</b> — mas continua consumindo recursos e gera boatos ("os que somem"). Contenção com custo, reversível.<br>
+    · <b class="k">Exilar</b> (a Saída): remove de vez, mas deixa uma <b>cicatriz permanente</b> de revolta. Emergência, não rotina.<br>
+    · <b>Acalmar</b>: baixa a suspeita geral (o que segura a rebelião e a queda de produção). Rende menos a cada uso.<br>
+    · <b>Reparo</b>: tapa um recurso. A produção de verdade vem dos trabalhadores nos postos.
+  </div>
+
+  <div id="game">
+    <div id="alertSlot"></div>
+    <div class="card">
+      <h2>Estado do Poço</h2>
+      <div class="meters" id="meters"></div>
+      <div class="note" id="prodNote"></div>
+    </div>
+    <div class="row">
+      <div class="col card">
+        <h2>Ações (custam 1 cada)</h2>
+        <div id="actions"></div>
+        <div class="note">Para lidar com a verdade, clique num morador abaixo.</div>
+      </div>
+      <div class="col card">
+        <h2>Sistemas &amp; produção</h2>
+        <div id="systems"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Moradores <span style="text-transform:none;font-weight:400;color:var(--dim)">— clique para inspecionar e agir</span></h2>
+      <div class="people" id="people"></div>
+      <div id="selPanel"></div>
+    </div>
+    <div style="text-align:center;margin-top:16px;">
+      <button class="pri" id="endTurn" style="font-size:15px;padding:11px 26px;">Avançar turno ▸</button>
+    </div>
+    <div class="card"><h2>Registro</h2><div class="log" id="log"></div></div>
+  </div>
+
+  <div id="endScreen" class="hidden"></div>
+</div>
+
+<script>
+const NAMES=["Marta","Nael","Bruno","Cléo","Ivo","Rosa","Dante","Lena","Ciro","Vera"];
+const SYS=["Ar","Energia","Comida"];
+const YIELD={Ar:8,Energia:8,Comida:7.5};
+const BASE_STAFF=3;
+let S;
+
+function fresh(){
+  const people=NAMES.slice(0,10).map((n,i)=>({id:i,name:n,job:i<9?SYS[i%3]:null,state:'ok',isolated:false}));
+  people[4].state='sabe'; people[7].state='sabe';
+  return {
+    turn:1, maxTurn:14, attention:3, attMax:3,
+    res:{Ar:64,Energia:62,Comida:60},
+    suspicion:8, rebellion:0, marFloor:0,
+    consRate:2.3, calmUses:0,
+    people, selected:null, exiles:0, exiledNames:[],
+    log:["Dois moradores já sabem demais. E a cada turno a mentira fica mais difícil de sustentar."],
+    over:false
+  };
+}
+function clamp(v){return Math.max(0,Math.min(100,v));}
+function log(t){S.log.unshift(t);}
+function colorFor(v,warnHigh){
+  if(warnHigh) return v>60?'var(--bad)':v>35?'var(--warn)':'var(--ok)';
+  return v<25?'var(--bad)':v<50?'var(--warn)':'var(--ok)';
+}
+function activeWorkers(sys){return S.people.filter(p=>p.job===sys && !p.isolated).length;}
+function susPenalty(){return Math.max(0.15, 1 - S.suspicion/175);}
+function production(sys){return activeWorkers(sys)*YIELD[sys]*susPenalty();}
+function consumption(){return S.people.length*S.consRate;}
+function netDelta(sys){return production(sys)-consumption();}
+function backfill(sys){const sp=S.people.find(p=>p.job===null && !p.isolated); if(sp){sp.job=sys; log(`${sp.name} (sobressalente) assumiu o posto de ${sys}.`);} }
+
+function render(){
+  document.getElementById('turn').textContent=S.turn;
+  document.getElementById('attNum').textContent=S.attention;
+  let dots=''; for(let i=0;i<S.attMax;i++) dots+=`<span class="dot ${i<S.attention?'':'off'}"></span>`;
+  document.getElementById('attDots').innerHTML=dots;
+
+  const kc=S.people.filter(p=>p.state==='sabe'&&!p.isolated).length;
+  const dc=S.people.filter(p=>p.state==='desconfiada'&&!p.isolated).length;
+  const isoN=S.people.filter(p=>p.isolated).length;
+  const as=document.getElementById('alertSlot');
+  if(kc>0) as.innerHTML=`<div class="alert">⚠ <b>${kc}</b> morador(es) SABEM e estão contaminando os demais${dc>0?` (e ${dc} já desconfiam)`:''}. Clique num deles abaixo para isolar ou exilar.</div>`;
+  else if(dc>0) as.innerHTML=`<div class="alert calm">${dc} morador(es) começaram a desconfiar. Ninguém "sabe" ainda — mas não vai durar.</div>`;
+  else as.innerHTML=`<div class="alert calm">Ninguém sabe da verdade agora. Respire — a mentira envelhece a cada turno.</div>`;
+
+  const meters=[
+    {k:'Ar',v:S.res.Ar,wh:false,d:netDelta('Ar')},
+    {k:'Energia',v:S.res.Energia,wh:false,d:netDelta('Energia')},
+    {k:'Comida',v:S.res.Comida,wh:false,d:netDelta('Comida')},
+    {k:'Suspeita',v:S.suspicion,wh:true},
+    {k:'Rebelião',v:S.rebellion,wh:true,floor:S.marFloor}
+  ];
+  document.getElementById('meters').innerHTML=meters.map(m=>{
+    const c=colorFor(m.v,m.wh); let tr='';
+    if(m.d!==undefined){const s=m.d>=0?'+':'';tr=`<div class="trend" style="color:${m.d>=0?'var(--ok)':'var(--bad)'}">${s}${m.d.toFixed(1)}/turno</div>`;}
+    if(m.floor!==undefined&&m.floor>0) tr=`<div class="trend" style="color:#f0a0a0">piso permanente: ${Math.round(m.floor)}</div>`;
+    const fl=(m.floor!==undefined&&m.floor>0)?`<div class="floor" style="left:${Math.round(m.floor)}%"></div>`:'';
+    return `<div class="m"><div class="lbl"><span>${m.k}</span></div><div class="val" style="color:${c}">${Math.round(m.v)}</div>${tr}<div class="bar"><i style="width:${Math.round(m.v)}%;background:${c}"></i>${fl}</div></div>`;
+  }).join('');
+  document.getElementById('prodNote').innerHTML=`Penalidade da suspeita na produção: <b style="color:${S.suspicion>50?'var(--bad)':'var(--warn)'}">−${Math.round((1-susPenalty())*100)}%</b> · Consumo/morador: ${S.consRate.toFixed(2)} (sobe a cada turno) · Isolados consumindo: ${isoN}.`;
+
+  const dis=S.attention<=0?'disabled':'';
+  document.getElementById('actions').innerHTML=`
+    <div class="actline"><span class="t">Reparo emergencial · Ar</span><button ${dis} onclick="patch('Ar')">+8 <span class="cost">(1)</span></button></div>
+    <div class="actline"><span class="t">Reparo emergencial · Energia</span><button ${dis} onclick="patch('Energia')">+8 <span class="cost">(1)</span></button></div>
+    <div class="actline"><span class="t">Reparo emergencial · Comida</span><button ${dis} onclick="patch('Comida')">+8 <span class="cost">(1)</span></button></div>
+    <div class="actline"><span class="t">Acalmar os ânimos</span><button ${dis} onclick="calm()">suspeita −${Math.max(5,14-S.calmUses*3)} <span class="cost">(1)</span></button></div>`;
+
+  document.getElementById('systems').innerHTML=SYS.map(s=>{
+    const w=activeWorkers(s); const net=netDelta(s);
+    return `<div class="actline"><span class="t">${s} — <span style="color:var(--dim)">${w} trab.</span></span><span style="font-size:12px;color:${net>=0?'var(--ok)':'var(--bad)'}">${net>=0?'+':''}${net.toFixed(1)}/turno</span></div>`;
+  }).join('');
+
+  document.getElementById('people').innerHTML=S.people.map(p=>{
+    let cls='p'; if(p.id===S.selected) cls+=' sel';
+    if(p.isolated) cls+=' iso';
+    else if(p.state==='sabe') cls+=' sabe';
+    else if(p.state==='desconfiada') cls+=' desconf';
+    let st;
+    if(p.isolated) st='<div class="st iso">isolada — não produz, ainda consome</div>';
+    else if(p.state==='sabe') st='<div class="st k">SABE — contamina</div>';
+    else if(p.state==='desconfiada') st='<div class="st d">desconfiada</div>';
+    else st='<div class="st o">tranquila</div>';
+    return `<div class="${cls}" onclick="select(${p.id})"><div class="nm">${p.name}</div><div class="jb">${p.job?('Posto: '+p.job):'sobressalente'}</div>${st}</div>`;
+  }).join('');
+
+  const sp=document.getElementById('selPanel');
+  if(S.selected!==null){
+    const p=S.people.find(x=>x.id===S.selected);
+    if(!p){sp.innerHTML='';}
+    else{
+      let acts=''; const knows=(p.state==='sabe'||p.state==='desconfiada');
+      if(p.isolated){
+        acts=`<span style="color:var(--mut);font-size:13px">Isolada: fora do posto, não contamina, mas <b>segue consumindo recursos</b> e os boatos sobre "os que somem" elevam a suspeita a cada turno.</span>
+              <div class="opts"><button class="danger" onclick="act('exilar')">Condenar à Saída</button><button onclick="act('reintegrar')">Reintegrar ao posto</button></div>`;
+      } else if(knows){
+        acts=`<div class="opts">
+          <button ${S.attention<=0?'disabled':''} onclick="act('isolar')">Isolar (1) <span class="cost">— para de contaminar; segue consumindo</span></button>
+          <button class="danger" ${S.attention<=0?'disabled':''} onclick="act('exilar')">Exilar / a Saída (1) <span class="cost">— cicatriz permanente de revolta</span></button>
+        </div>`;
+      } else acts=`<span style="color:var(--mut);font-size:13px">Tranquila por enquanto. Nada a fazer — a não ser mantê-la assim.</span>`;
+      sp.innerHTML=`<div class="sel-panel"><b>${p.name}</b> — ${p.job?('posto de '+p.job):'sobressalente'} · ${p.isolated?'isolada':(p.state==='sabe'?'sabe da verdade':p.state==='desconfiada'?'desconfiada':'tranquila')}${acts}</div>`;
+    }
+  } else sp.innerHTML='';
+
+  document.getElementById('log').innerHTML=S.log.slice(0,12).map(l=>`<div>${l}</div>`).join('');
+}
+
+function select(id){S.selected=(S.selected===id?null:id); render();}
+function patch(k){ if(S.attention<=0)return; S.attention--; S.res[k]=clamp(S.res[k]+8); log(`Reparo emergencial em ${k}: +8.`); render(); }
+function calm(){ if(S.attention<=0)return; S.attention--; const e=Math.max(5,14-S.calmUses*3); S.calmUses++; S.suspicion=clamp(S.suspicion-e); log(`Você acalmou os ânimos. Suspeita −${e} (rende menos a cada vez).`); render(); }
+
+function act(kind){
+  const p=S.people.find(x=>x.id===S.selected); if(!p) return;
+  if(kind==='isolar'){
+    if(S.attention<=0)return; S.attention--; const job=p.job;
+    p.isolated=true; S.suspicion=clamp(S.suspicion+3);
+    log(`${p.name} isolada, fora do posto de ${job}. Não contamina mais, mas segue consumindo (suspeita +3).`);
+    if(job) backfill(job);
+  } else if(kind==='exilar'){
+    if(S.attention<=0)return; S.attention--; const job=p.job;
+    S.people=S.people.filter(x=>x.id!==p.id); S.selected=null; S.exiles++; S.exiledNames.push(p.name);
+    S.rebellion=clamp(S.rebellion+14); S.suspicion=clamp(S.suspicion+8);
+    S.marFloor=Math.min(100, S.marFloor+22);
+    log(`⚠ ${p.name} condenada à Saída. Rebelião +14; piso permanente de revolta agora ${Math.round(S.marFloor)}. Cada Saída aproxima o ponto sem volta.`);
+    const oks=S.people.filter(x=>x.state==='ok'&&!x.isolated);
+    if(oks.length>0 && Math.random()<0.5){ const t=oks[Math.floor(Math.random()*oks.length)]; t.state='desconfiada'; log(`A Saída de ${p.name} não passou despercebida: ${t.name} começou a desconfiar.`); }
+    if(job) backfill(job);
+  } else if(kind==='reintegrar'){
+    const full=activeWorkers(p.job)>=BASE_STAFF; p.isolated=false;
+    if(full){ log(`${p.name} voltou como sobressalente (o posto já fora coberto). Volta a circular.`); p.job=null; }
+    else log(`${p.name} voltou ao posto de ${p.job}. Volta a circular.`);
+  }
+  render();
+}
+
+function endTurn(){
+  SYS.forEach(s=>{ S.res[s]=clamp(S.res[s]+netDelta(s)); });
+  const spr=S.people.filter(p=>p.state==='sabe'&&!p.isolated);
+  if(spr.length>0) for(let r=0;r<2;r++){
+    if(Math.random()<0.40){
+      const d=S.people.filter(p=>p.state==='desconfiada'&&!p.isolated);
+      const o=S.people.filter(p=>p.state==='ok'&&!p.isolated);
+      if(d.length>0 && Math.random()<0.6){ const t=d[Math.floor(Math.random()*d.length)]; t.state='sabe'; log(`${t.name} passou de desconfiada a SABER.`); }
+      else if(o.length>0){ const t=o[Math.floor(Math.random()*o.length)]; t.state='desconfiada'; log(`${t.name} começou a desconfiar.`); }
+    }
+  }
+  // pressão de base que ESCALA (a mentira envelhece)
+  const spont=0.05+(S.turn-1)*0.015, self=0.05+(S.turn-1)*0.008;
+  const oks=S.people.filter(p=>p.state==='ok'&&!p.isolated);
+  if(oks.length>0 && Math.random()<spont){ const t=oks[Math.floor(Math.random()*oks.length)]; t.state='desconfiada'; log(`${t.name} notou uma inconsistência e começou a desconfiar.`); }
+  S.people.filter(p=>p.state==='desconfiada'&&!p.isolated).forEach(p=>{ if(Math.random()<self){ p.state='sabe'; log(`${p.name} juntou as peças sozinha — agora sabe.`);} });
+  const isoK=S.people.filter(p=>p.state==='sabe'&&p.isolated);
+  if(isoK.length>0){
+    S.suspicion=clamp(S.suspicion+isoK.length*1.5);
+    isoK.forEach(()=>{ if(Math.random()<0.15){ const o=S.people.filter(p=>p.state==='ok'&&!p.isolated); if(o.length>0) o[Math.floor(Math.random()*o.length)].state='desconfiada'; } });
+  }
+  const kc=S.people.filter(p=>p.state==='sabe'&&!p.isolated).length;
+  const dc=S.people.filter(p=>p.state==='desconfiada'&&!p.isolated).length;
+  let g=kc*2.5 + dc*1;
+  if(S.res.Ar<40||S.res.Energia<40||S.res.Comida<40) g+=3;
+  S.suspicion=clamp(S.suspicion+g);
+  if(S.suspicion<25) S.suspicion=clamp(S.suspicion-2);
+  if(S.suspicion>55) S.rebellion=clamp(S.rebellion+(S.suspicion-55)*0.3);
+  else if(S.suspicion<35) S.rebellion=clamp(S.rebellion-2);
+  if(S.rebellion<S.marFloor) S.rebellion=S.marFloor;
+  S.consRate+=0.06;
+  const dead=[];
+  if(S.res.Ar<=0)dead.push('o ar acabou');
+  if(S.res.Energia<=0)dead.push('o gerador morreu');
+  if(S.res.Comida<=0)dead.push('a fome venceu');
+  if(dead.length>0) return finish(false,'Colapso físico — '+dead.join(' e ')+'.');
+  if(S.suspicion>=100) return finish(false,'A suspeita virou certeza. A multidão tomou o refeitório.');
+  if(S.rebellion>=100) return finish(false,'Colapso social — a rebelião tomou o Poço.');
+  S.turn++; S.selected=null;
+  if(S.turn>S.maxTurn) return finish(true,'Você atravessou 14 turnos. O Poço resistiu — e você sabe o preço exato.');
+  S.attention=S.attMax; log(`— Turno ${S.turn} — (a pressão da verdade aumentou)`);
+  render();
+}
+
+function finish(win,msg){
+  S.over=true;
+  const sabem=S.people.filter(p=>p.state==='sabe'&&!p.isolated);
+  const desconf=S.people.filter(p=>p.state==='desconfiada'&&!p.isolated);
+  const tranq=S.people.filter(p=>p.state==='ok'&&!p.isolated);
+  const isolados=S.people.filter(p=>p.isolated);
+  const names=a=>a.length?a.map(p=>p.name).join(', '):'ninguém';
+  document.getElementById('game').classList.add('hidden');
+  const el=document.getElementById('endScreen'); el.classList.remove('hidden');
+  el.innerHTML=`<div class="end">
+    <div class="big" style="color:${win?'var(--ok)':'var(--bad)'}">${win?'O Poço resistiu':'O Poço caiu'}</div>
+    <div class="msg">${msg}</div>
+    <div class="r">
+      <p style="color:var(--txt);font-weight:600;margin:0 0 4px;">Como você fechou a partida</p>
+      <div class="sumgrid">
+        <div class="sumcell"><div class="l">Ar</div><div class="v" style="color:${colorFor(S.res.Ar,false)}">${Math.round(S.res.Ar)}</div></div>
+        <div class="sumcell"><div class="l">Energia</div><div class="v" style="color:${colorFor(S.res.Energia,false)}">${Math.round(S.res.Energia)}</div></div>
+        <div class="sumcell"><div class="l">Comida</div><div class="v" style="color:${colorFor(S.res.Comida,false)}">${Math.round(S.res.Comida)}</div></div>
+        <div class="sumcell"><div class="l">Suspeita</div><div class="v" style="color:${colorFor(S.suspicion,true)}">${Math.round(S.suspicion)}</div></div>
+        <div class="sumcell"><div class="l">Rebelião</div><div class="v" style="color:${colorFor(S.rebellion,true)}">${Math.round(S.rebellion)}</div></div>
+        <div class="sumcell"><div class="l">Exílios</div><div class="v">${S.exiles}</div></div>
+      </div>
+      <p class="taglist"><b style="color:var(--truth)">Sabiam da verdade:</b> ${names(sabem)}<br>
+      <b style="color:var(--warn)">Desconfiavam:</b> ${names(desconf)}<br>
+      <b style="color:var(--ok)">Tranquilos:</b> ${names(tranq)}<br>
+      <b style="color:var(--acc)">Isolados:</b> ${names(isolados)}<br>
+      <b style="color:#f0a0a0">Enviados à Saída:</b> ${S.exiledNames.length?S.exiledNames.join(', '):'ninguém'}</p>
+      <p style="color:var(--txt);font-weight:600;margin:16px 0 6px;">Verifique</p>
+      1. Ficou <b>claro</b> o que cada ação faz (isolar x exilar x acalmar)?<br>
+      2. Deu para sentir que a verdade <b>não se impede</b>, só se administra?<br>
+      3. Você <b>venceu pensando ou perdeu</b>? A tensão pareceu justa?<br>
+      4. Deu vontade de <b>tentar outra estratégia</b>?
+    </div>
+    <div style="text-align:center;"><button class="pri" onclick="restart()" style="font-size:15px;padding:11px 26px;margin-top:16px;">Jogar de novo</button></div>
+  </div>`;
+}
+function restart(){ S=fresh(); document.getElementById('endScreen').classList.add('hidden'); document.getElementById('game').classList.remove('hidden'); render(); }
+
+document.getElementById('endTurn').addEventListener('click',endTurn);
+S=fresh(); render();
+</script>
+</body>
+</html>
