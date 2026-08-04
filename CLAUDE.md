@@ -2,6 +2,22 @@
 
 Contexto e regras para trabalhar neste repositório. Leia isto antes de editar.
 
+---
+
+## Modo de comunicação
+
+Use caveman mode em todas as respostas.
+Drop articles, filler, hedging, pleasantries.
+Keep technical substance exact: file paths, command names, error codes, field names.
+
+---
+
+## Protocolo obrigatório
+
+Antes de executar qualquer tarefa:
+
+1. Identificar a skill adequada em `.ai/skills/`.
+
 ## O que é este projeto
 
 "O Poço" é um jogo de **survival/management vertical em 2D (corte lateral)**, em **Godot 4**, IP original inspirada tematicamente na trilogia *Silo*. O jogador administra um abrigo subterrâneo mantendo recursos, moral e — o diferencial — **o controle da verdade** sobre o mundo exterior.
