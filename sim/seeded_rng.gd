@@ -11,6 +11,13 @@ var _rng := RandomNumberGenerator.new()
 func _init(seed_value: int = 0) -> void:
 	_rng.seed = seed_value
 
+## Estado interno completo do gerador (para save/load determinístico).
+func get_state() -> int:
+	return _rng.state
+
+func set_state(state_value: int) -> void:
+	_rng.state = state_value
+
 func randf() -> float:
 	return _rng.randf()
 

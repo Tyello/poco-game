@@ -68,6 +68,18 @@ func _generate_bonds() -> void:
 		s.bonds.append({"a": a, "b": b, "kind": kind})
 		pairs += 1
 
+func save_game(path: String = SaveData.DEFAULT_PATH) -> void:
+	SaveData.save_to_file(s, path)
+
+## Carrega um save e, se bem-sucedido, substitui o estado atual (s).
+## Retorna true/false para a UI decidir o que mostrar.
+func load_game(path: String = SaveData.DEFAULT_PATH) -> bool:
+	var loaded := SaveData.load_from_file(path)
+	if loaded == null:
+		return false
+	s = loaded
+	return true
+
 func _log(t: String) -> void:
 	s.log_lines.push_front(t)
 

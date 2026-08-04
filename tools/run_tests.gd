@@ -36,6 +36,8 @@ func _run_all() -> void:
 	test_trait_modifiers_neutral()
 	test_stories_dont_affect_meters()
 	test_exile_prioritizes_bond()
+	test_save_load_roundtrip()
+	test_save_version_defaults_to_1()
 
 # --------------------------------------------------------------- testes
 
@@ -192,6 +194,60 @@ func test_exile_prioritizes_bond() -> void:
 		break
 	if not found_case:
 		_check(true, "exílio prioriza vínculo (nenhum caso de conversão nas 50 seeds testadas, pulado)")
+
+func test_save_load_roundtrip() -> void:
+	var path := "user://save_test_1.json"
+	var g1 := SimGame.new()
+	var s1 := g1.new_game(55)
+	g1.patch(_lowest_res(s1))
+	var knower := _first_active_knower(s1)
+	if knower != null:
+		g1.isolate(knower)
+	g1.advance_turn()
+	g1.calm()
+	g1.advance_turn()
+
+	SaveData.save_to_file(s1, path)
+
+	for i in 3:
+		if s1.over:
+			break
+		g1.patch(_lowest_res(s1))
+		g1.advance_turn()
+	var ref_snapshot := _snapshot(s1)
+
+	var s2 := SaveData.load_from_file(path)
+	_check(s2 != null, "save/load: arquivo carrega de volta")
+	if s2 == null:
+		return
+	var g2 := SimGame.new()
+	g2.s = s2
+	for i in 3:
+		if s2.over:
+			break
+		g2.patch(_lowest_res(s2))
+		g2.advance_turn()
+	var loaded_snapshot := _snapshot(s2)
+	_check(ref_snapshot == loaded_snapshot, "avançar após carregar == avançar sem ter salvado (mesma seed)")
+
+func test_save_version_defaults_to_1() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(1)
+	var d := SaveData.to_dict(s)
+	_check(d.has("save_version") and d["save_version"] == SaveData.CURRENT_VERSION, "save_version presente no dict serializado")
+	d.erase("save_version")
+	var s2 := SaveData.from_dict(d)
+	_check(s2 != null and s2.residents.size() == s.residents.size(), "carregar save sem save_version não quebra (assume v1)")
+
+func _snapshot(s: WorldState) -> String:
+	var parts := [
+		"turn=%d" % s.turn, "sus=%.3f" % s.suspicion, "reb=%.3f" % s.rebellion,
+		"ar=%.3f" % s.res["Ar"], "en=%.3f" % s.res["Energia"], "co=%.3f" % s.res["Comida"],
+		"cons=%.5f" % s.cons_rate, "won=%s" % str(s.won), "over=%s" % str(s.over),
+	]
+	for r in s.residents:
+		parts.append("%d:%s:%s:%s:%s" % [r.id, r.job, r.state, str(r.isolated), ",".join(r.traits)])
+	return "|".join(parts)
 
 # --------------------------------------------------------- utilidades
 

@@ -147,6 +147,8 @@ func _build_hud_panel() -> void:
 	_add_action_button("Reparar Energia", func(): _do(game.patch("Energia")))
 	_add_action_button("Reparar Comida", func(): _do(game.patch("Comida")))
 	_add_action_button("Acalmar", func(): _do(game.calm()))
+	_add_free_button("Salvar", func(): game.save_game())
+	_add_free_button("Carregar", func(): _on_load())
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -202,6 +204,13 @@ func _add_action_button(label: String, on_press: Callable) -> void:
 	actions_box.add_child(b)
 	action_buttons.append(b)
 
+## Botão que não depende de atenção restante (ex.: Salvar/Carregar).
+func _add_free_button(label: String, on_press: Callable) -> void:
+	var b := Button.new()
+	b.text = label
+	b.pressed.connect(on_press)
+	actions_box.add_child(b)
+
 func _danger_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.35, 0.10, 0.10)
@@ -220,6 +229,12 @@ func _do(_result: bool) -> void:
 func _on_advance_turn() -> void:
 	game.advance_turn()
 	_render()
+
+func _on_load() -> void:
+	if game.load_game():
+		s = game.s
+		selected_id = -1
+		_render()
 
 func _on_isolate(r: Resident) -> void:
 	game.isolate(r)
