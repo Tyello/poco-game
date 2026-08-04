@@ -14,6 +14,7 @@ var martyr_floor: float = 0.0            # piso permanente de rebelião (cicatri
 var cons_rate: float = Balance.CONS_START
 var calm_uses: int = 0
 var residents: Array[Resident] = []
+var bonds: Array[Dictionary] = []       # [{"a": id, "b": id, "kind": "familia"|"amizade"}, ...]
 var exiles: int = 0
 var exiled_names: Array[String] = []
 var rng: SeededRng
@@ -67,3 +68,13 @@ func find_by_id(id: int) -> Resident:
 		if r.id == id:
 			return r
 	return null
+
+## Ids de todos os moradores com vínculo direto com `id` (qualquer tipo).
+func bonded_with(id: int) -> Array[int]:
+	var out: Array[int] = []
+	for b in bonds:
+		if b["a"] == id:
+			out.append(b["b"])
+		elif b["b"] == id:
+			out.append(b["a"])
+	return out

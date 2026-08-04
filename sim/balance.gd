@@ -66,3 +66,14 @@ const EXILE_SUS := 8.0
 const EXILE_MARTYR_FLOOR := 22.0 # cada Saída eleva um piso PERMANENTE de rebelião
 const MARTYR_FLOOR_CAP := 100.0
 const EXILE_CONVERT_CHANCE := 0.5
+
+# --- Traços e vínculos (Fase 3) ---
+const TRAIT_SECOND_CHANCE := 0.5 # chance de um morador ter um 2º traço (1 é garantido)
+const BOND_PAIRS := 4            # nº de vínculos (família/amizade) gerados em new_game()
+
+# Modificadores mecânicos de traço: reservados para uma passada de
+# balanceamento dedicada (ver docs/09, "Fora de escopo"). Ficam em 0.0
+# (desligados) e NÃO são aplicados em nenhuma fórmula ainda — existem
+# apenas para não obrigar a mexer em balance.gd quando forem ligados.
+const TRAIT_MOD_CETICO_SPONT := 0.0  # cético: pressão de base de desconfiança
+const TRAIT_MOD_DEVOTO_SPONT := 0.0  # devoto: idem, sentido oposto

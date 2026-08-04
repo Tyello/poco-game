@@ -9,6 +9,7 @@ var given_name: String
 var job: String = ""            # "", "Ar", "Energia", "Comida"
 var state: String = "ok"        # "ok" (tranquilo), "desconfiada", "sabe"
 var isolated: bool = false
+var traits: Array[String] = []  # 1-2 traços, ver sim/traits.gd (Fase 3)
 
 func _init(_id: int = 0, _name: String = "", _job: String = "") -> void:
 	id = _id

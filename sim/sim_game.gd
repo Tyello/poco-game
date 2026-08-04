@@ -29,8 +29,44 @@ func new_game(seed_value: int = 0) -> WorldState:
 		s.residents.append(Resident.new(i, Balance.NAMES[i], job))
 	for idx in Balance.SEED_KNOWERS:
 		s.residents[idx].state = "sabe"
+	_assign_traits()
+	_generate_bonds()
 	s.log_lines.append("Dois moradores já sabem demais. A mentira envelhece a cada turno.")
 	return s
+
+## Sorteia 1-2 traços por morador, determinístico via s.rng.
+func _assign_traits() -> void:
+	for r in s.residents:
+		var pool := Traits.POOL.duplicate()
+		var t1 = s.rng.pick(pool)
+		r.traits.append(t1)
+		if s.rng.chance(Balance.TRAIT_SECOND_CHANCE):
+			pool.erase(t1)
+			var t2 = s.rng.pick(pool)
+			r.traits.append(t2)
+
+## Gera Balance.BOND_PAIRS vínculos (família/amizade) entre moradores
+## distintos, sem repetir par, determinístico via s.rng.
+func _generate_bonds() -> void:
+	var ids: Array[int] = []
+	for r in s.residents:
+		ids.append(r.id)
+	var used := {}
+	var pairs := 0
+	var guard := 0
+	while pairs < Balance.BOND_PAIRS and guard < 200:
+		guard += 1
+		var a = s.rng.pick(ids)
+		var b = s.rng.pick(ids)
+		if a == b:
+			continue
+		var key := "%d-%d" % [mini(a, b), maxi(a, b)]
+		if used.has(key):
+			continue
+		used[key] = true
+		var kind := "familia" if s.rng.chance(0.5) else "amizade"
+		s.bonds.append({"a": a, "b": b, "kind": kind})
+		pairs += 1
 
 func _log(t: String) -> void:
 	s.log_lines.push_front(t)

@@ -31,6 +31,9 @@ func _run_all() -> void:
 	test_ignore_truth_loses()
 	test_physical_collapse()
 	test_suspicion_collapse()
+	test_traits_assigned()
+	test_bonds_deterministic()
+	test_trait_modifiers_neutral()
 
 # --------------------------------------------------------------- testes
 
@@ -102,6 +105,42 @@ func test_suspicion_collapse() -> void:
 	s.suspicion = 100.0
 	g.advance_turn()
 	_check(s.over and not s.won, "suspeita em 100 → derrota social")
+
+func test_traits_assigned() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(7)
+	var all_have_traits := true
+	for r in s.residents:
+		if r.traits.size() < 1 or r.traits.size() > 2:
+			all_have_traits = false
+	_check(all_have_traits, "todo morador tem 1-2 traços")
+	var g2 := SimGame.new()
+	var s2 := g2.new_game(7)
+	var same := true
+	for i in s.residents.size():
+		if s.residents[i].traits != s2.residents[i].traits:
+			same = false
+	_check(same, "mesma seed produz os mesmos traços (determinismo)")
+
+func test_bonds_deterministic() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(7)
+	var g2 := SimGame.new()
+	var s2 := g2.new_game(7)
+	_check(s.bonds == s2.bonds, "mesma seed produz os mesmos vínculos (determinismo)")
+	_check(s.bonds.size() == Balance.BOND_PAIRS, "gera %d vínculos" % Balance.BOND_PAIRS)
+	var ids_ok := true
+	for b in s.bonds:
+		if s.find_by_id(b["a"]) == null or s.find_by_id(b["b"]) == null:
+			ids_ok = false
+	_check(ids_ok, "ids referenciados nos vínculos existem")
+
+## Modificadores de traço existem como constantes mas ficam neutros
+## (0.0) até uma passada de balanceamento dedicada (docs/09). O teste
+## test_ignore_truth_loses acima já confirma que a taxa de vitória
+## ignorando a verdade não mudou.
+func test_trait_modifiers_neutral() -> void:
+	_check(Balance.TRAIT_MOD_CETICO_SPONT == 0.0 and Balance.TRAIT_MOD_DEVOTO_SPONT == 0.0, "modificadores mecânicos de traço neutros por padrão")
 
 # --------------------------------------------------------- utilidades
 
