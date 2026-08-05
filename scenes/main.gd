@@ -26,6 +26,7 @@ const SOCIAL_BAD_MIN := 60.0
 const STRATA := [
 	{"sys": "", "title": "A Coroa", "tint": Color(0.11, 0.14, 0.20)},
 	{"sys": "Comida", "title": "Os Meios — Fazendas", "tint": Color(0.11, 0.17, 0.13)},
+	{"sys": "Água", "title": "Os Meios — Reservatório", "tint": Color(0.11, 0.17, 0.13)},
 	{"sys": "Ar", "title": "Os Meios — Filtragem", "tint": Color(0.11, 0.17, 0.13)},
 	{"sys": "Energia", "title": "As Entranhas — Gerador", "tint": Color(0.20, 0.16, 0.10)},
 ]
@@ -50,6 +51,8 @@ var end_panel: PanelContainer
 var end_label: RichTextLabel
 var root_layout: VBoxContainer
 var action_buttons: Array[Button] = []
+var parts_label: Label
+var selected_sector: String = ""
 
 func _ready() -> void:
 	_build_ui()
@@ -143,9 +146,8 @@ func _build_hud_panel() -> void:
 	actions_box = HBoxContainer.new()
 	actions_box.add_theme_constant_override("separation", 6)
 	col.add_child(actions_box)
-	_add_action_button("Reparar Ar", func(): _do(game.patch("Ar")))
-	_add_action_button("Reparar Energia", func(): _do(game.patch("Energia")))
-	_add_action_button("Reparar Comida", func(): _do(game.patch("Comida")))
+	for sys in Balance.SYSTEMS:
+		_add_action_button("Reparar %s" % sys, _on_patch.bind(sys))
 	_add_action_button("Acalmar", func(): _do(game.calm()))
 	_add_free_button("Salvar", func(): game.save_game())
 	_add_free_button("Carregar", func(): _on_load())
@@ -166,6 +168,8 @@ func _build_hud_panel() -> void:
 
 	# --- título + medidores de recursos ---
 	col.add_child(_section_title("Recursos"))
+	parts_label = Label.new()
+	col.add_child(parts_label)
 	meters_box = HBoxContainer.new()
 	meters_box.add_theme_constant_override("separation", 12)
 	col.add_child(meters_box)
@@ -226,6 +230,18 @@ func _danger_style() -> StyleBoxFlat:
 func _do(_result: bool) -> void:
 	_render()
 
+func _on_patch(sys: String) -> void:
+	_do(game.patch(sys))
+
+func _on_upgrade(sys: String) -> void:
+	game.upgrade(sys)
+	_render()
+
+func _on_select_sector(sys: String) -> void:
+	selected_sector = sys
+	selected_id = -1
+	_render()
+
 func _on_advance_turn() -> void:
 	game.advance_turn()
 	_render()
@@ -258,6 +274,7 @@ func _render() -> void:
 	for b in action_buttons:
 		b.disabled = s.attention <= 0
 
+	parts_label.text = "Peças: %d" % int(s.parts)
 	for c in meters_box.get_children():
 		c.queue_free()
 	for sys in Balance.SYSTEMS:
@@ -407,12 +424,11 @@ func _build_floor(sys: String, title: String, tint: Color) -> Control:
 	header.add_theme_constant_override("separation", 10)
 	col.add_child(header)
 
-	var title_label := Label.new()
-	title_label.text = title
-	title_label.custom_minimum_size = Vector2(170, 0)
-	header.add_child(title_label)
-
 	if sys == "":
+		var title_label := Label.new()
+		title_label.text = title
+		title_label.custom_minimum_size = Vector2(170, 0)
+		header.add_child(title_label)
 		var knowers := s.count_state("sabe")
 		var alert := Label.new()
 		if knowers > 0:
@@ -432,6 +448,13 @@ func _build_floor(sys: String, title: String, tint: Color) -> Control:
 		log_scroll.add_child(crown_log)
 		col.add_child(log_scroll)
 		return panel
+
+	var title_btn := Button.new()
+	title_btn.text = title
+	title_btn.custom_minimum_size = Vector2(170, 0)
+	title_btn.flat = selected_sector != sys
+	title_btn.pressed.connect(_on_select_sector.bind(sys))
+	header.add_child(title_btn)
 
 	header.add_child(_build_meter(sys, s.res[sys], false))
 	var stats := Label.new()
@@ -499,6 +522,7 @@ func _build_cell(r: Resident) -> Button:
 
 func _on_select_resident(r: Resident) -> void:
 	selected_id = r.id
+	selected_sector = ""
 	_render()
 
 ## Redesenha o painel de ação contextual do morador selecionado.
@@ -506,10 +530,14 @@ func _render_selection() -> void:
 	for c in selection_content.get_children():
 		c.queue_free()
 
+	if selected_sector != "":
+		_render_sector_selection(selected_sector)
+		return
+
 	var r: Resident = s.find_by_id(selected_id)
 	if r == null:
 		var hint := Label.new()
-		hint.text = "Clique num morador na coluna do Poço para ver detalhes e agir."
+		hint.text = "Clique num morador ou num setor na coluna do Poço para ver detalhes e agir."
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD
 		selection_content.add_child(hint)
 		return
@@ -582,3 +610,33 @@ func _render_selection() -> void:
 	exile_btn.add_theme_stylebox_override("normal", _danger_style())
 	exile_btn.pressed.connect(_on_exile.bind(r))
 	selection_content.add_child(exile_btn)
+
+## Painel de detalhe de um setor selecionado: detalhamento de produção
+## (workers × rendimento − consumo, com os multiplicadores em destaque) e
+## o botão de upgrade (Parte C). Reaproveita selection_content, o mesmo
+## painel usado para o detalhe de morador.
+func _render_sector_selection(sys: String) -> void:
+	var title_label := Label.new()
+	title_label.text = sys
+	selection_content.add_child(title_label)
+
+	var b := s.production_breakdown(sys)
+	var lvl: int = s.sector_upgrades.get(sys, 0)
+
+	var lvl_label := Label.new()
+	lvl_label.text = "Upgrade: nível %d/%d" % [lvl, Balance.UPGRADE_MAX_LEVEL]
+	lvl_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+	selection_content.add_child(lvl_label)
+
+	var breakdown_label := Label.new()
+	breakdown_label.text = "%d trab. × %.1f rend. = %.1f bruto\n× energia %.2f × suspeita %.2f\n= %.1f líquido/turno\n(consumo/setor: %.1f)" % [
+		b["workers"], b["yield_per_worker"], b["gross"], b["energy_mult"], b["sus_mult"], b["net_production"], b["consumption_share"],
+	]
+	breakdown_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	selection_content.add_child(breakdown_label)
+
+	var upgrade_btn := Button.new()
+	upgrade_btn.text = "Upgrade (%d peças)" % int(Balance.UPGRADE_PARTS_COST)
+	upgrade_btn.disabled = s.attention <= 0 or s.parts < Balance.UPGRADE_PARTS_COST or lvl >= Balance.UPGRADE_MAX_LEVEL
+	upgrade_btn.pressed.connect(_on_upgrade.bind(sys))
+	selection_content.add_child(upgrade_btn)

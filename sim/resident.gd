@@ -7,7 +7,7 @@ extends RefCounted
 var id: int
 var given_name: String
 var surname: String = ""        # ver Balance.SURNAMES (Fase 4, Parte B)
-var job: String = ""            # "", "Ar", "Energia", "Comida"
+var job: String = ""            # "", "Ar", "Energia", "Comida", "Água"
 var state: String = "ok"        # "ok" (tranquilo), "desconfiada", "sabe"
 var isolated: bool = false
 var traits: Array[String] = []  # 1-2 traços, ver sim/traits.gd (Fase 3)

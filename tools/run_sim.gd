@@ -12,21 +12,35 @@ func _init() -> void:
 	var g := SimGame.new()
 	var s := g.new_game(SEED_VALUE)
 	print("== O Poço — simulação automática (seed %d) ==\n" % SEED_VALUE)
-	print("Turno | Ar  En  Co | Susp Reb | sabem desconf | ações")
+	print("Turno | %s | Susp Reb | sabem desconf | ações" % _res_header())
 	while not s.over:
 		var acts := _play_turn(g, s)
 		_print_line(s, acts)
 		g.advance_turn()
 	print("\nFim: %s" % ("VITÓRIA" if s.won else "DERROTA"))
 	print(s.end_reason)
-	print("Estado final — Ar %d, Energia %d, Comida %d, Suspeita %d, Rebelião %d, Exílios %d" % [
-		int(s.res["Ar"]), int(s.res["Energia"]), int(s.res["Comida"]),
-		int(s.suspicion), int(s.rebellion), s.exiles])
+	print("Estado final — %s, Suspeita %d, Rebelião %d, Exílios %d" % [
+		_res_summary(s), int(s.suspicion), int(s.rebellion), s.exiles])
 	quit(0)
 
+func _res_header() -> String:
+	var parts: Array[String] = []
+	for sys in Balance.SYSTEMS:
+		parts.append(sys.substr(0, 2))
+	return " ".join(parts)
+
+func _res_summary(s: WorldState) -> String:
+	var parts: Array[String] = []
+	for sys in Balance.SYSTEMS:
+		parts.append("%s %d" % [sys, int(s.res[sys])])
+	return ", ".join(parts)
+
 func _print_line(s: WorldState, acts: String) -> void:
-	print("  %2d  | %2d  %2d  %2d | %3d  %3d | %2d     %2d      | %s" % [
-		s.turn, int(s.res["Ar"]), int(s.res["Energia"]), int(s.res["Comida"]),
+	var parts: Array[String] = []
+	for sys in Balance.SYSTEMS:
+		parts.append("%2d" % int(s.res[sys]))
+	print("  %2d  | %s | %3d  %3d | %2d     %2d      | %s" % [
+		s.turn, " ".join(parts),
 		int(s.suspicion), int(s.rebellion),
 		s.count_state("sabe"), s.count_state("desconfiada"), acts])
 

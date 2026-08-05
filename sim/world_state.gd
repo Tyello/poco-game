@@ -7,12 +7,14 @@ extends RefCounted
 
 var turn: int = 1
 var attention: int = Balance.ATTENTION_PER_TURN
-var res: Dictionary = {}                 # {"Ar": float, "Energia": float, "Comida": float}
+var res: Dictionary = {}                 # {"Ar": float, "Energia": float, "Comida": float, "Água": float}
 var suspicion: float = Balance.SUS_START
 var rebellion: float = 0.0
 var martyr_floor: float = 0.0            # piso permanente de rebelião (cicatrizes de exílio)
 var cons_rate: float = Balance.CONS_START
 var calm_uses: int = 0
+var parts: float = 0.0                   # peças (Fase 4, Parte C) — trickle passivo, financia upgrades
+var sector_upgrades: Dictionary = {}     # {sys: int} — nível de upgrade por setor, default 0
 var residents: Array[Resident] = []
 var bonds: Array[Dictionary] = []       # [{"a": id, "b": id, "kind": "familia"|"amizade"}, ...]
 var exiles: int = 0
@@ -37,14 +39,49 @@ func active_workers(sys: String) -> int:
 func sus_penalty() -> float:
 	return maxf(Balance.SUS_PENALTY_FLOOR, 1.0 - suspicion / Balance.SUS_PENALTY_DIV)
 
+## Cadeia de energia: Energia baixa penaliza a produção de TODOS os outros
+## setores (ela mesma não se estrangula). Ver Balance.ENERGY_CHAIN_*.
+func energy_factor() -> float:
+	if res.get("Energia", 0.0) >= Balance.ENERGY_CHAIN_THRESHOLD:
+		return 1.0
+	return Balance.ENERGY_CHAIN_PENALTY
+
+## Rendimento/trabalhador efetivo de um setor, já somando os upgrades
+## comprados com peças (Balance.UPGRADE_YIELD_BONUS por nível).
+func effective_yield(sys: String) -> float:
+	return float(Balance.YIELD_PER_WORKER[sys]) + sector_upgrades.get(sys, 0) * Balance.UPGRADE_YIELD_BONUS
+
 func production(sys: String) -> float:
-	return active_workers(sys) * float(Balance.YIELD_PER_WORKER[sys]) * sus_penalty()
+	var mult := sus_penalty()
+	if sys != "Energia":
+		mult *= energy_factor()
+	return active_workers(sys) * effective_yield(sys) * mult
 
 func consumption() -> float:
 	return residents.size() * cons_rate
 
 func net_delta(sys: String) -> float:
 	return production(sys) - consumption()
+
+## Detalhamento de produção de um setor, para exibição na UI (Parte C).
+## net_production reproduz exatamente production(sys); consumption_share é
+## só uma divisão igual do consumo (que continua sendo população-wide) para
+## efeito de exibição — não altera a fórmula real de consumo.
+func production_breakdown(sys: String) -> Dictionary:
+	var workers := active_workers(sys)
+	var ypw := effective_yield(sys)
+	var gross := workers * ypw
+	var energy_mult := 1.0 if sys == "Energia" else energy_factor()
+	var sus_mult := sus_penalty()
+	return {
+		"workers": workers,
+		"yield_per_worker": ypw,
+		"gross": gross,
+		"energy_mult": energy_mult,
+		"sus_mult": sus_mult,
+		"net_production": gross * energy_mult * sus_mult,
+		"consumption_share": consumption() / Balance.SYSTEMS.size(),
+	}
 
 # --- Consultas sobre a população ---
 

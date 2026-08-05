@@ -29,6 +29,8 @@ static func to_dict(s: WorldState) -> Dictionary:
 		"martyr_floor": s.martyr_floor,
 		"cons_rate": s.cons_rate,
 		"calm_uses": s.calm_uses,
+		"parts": s.parts,
+		"sector_upgrades": s.sector_upgrades,
 		"exiles": s.exiles,
 		"exiled_names": s.exiled_names,
 		"residents": residents_data,
@@ -55,6 +57,11 @@ static func from_dict(raw: Dictionary) -> WorldState:
 	s.martyr_floor = float(data.get("martyr_floor", 0.0))
 	s.cons_rate = float(data.get("cons_rate", Balance.CONS_START))
 	s.calm_uses = int(data.get("calm_uses", 0))
+	s.parts = float(data.get("parts", 0.0))
+	var sector_upgrades := {}
+	for k in (data.get("sector_upgrades", {}) as Dictionary).keys():
+		sector_upgrades[k] = int(data["sector_upgrades"][k])
+	s.sector_upgrades = sector_upgrades
 	s.exiles = int(data.get("exiles", 0))
 	var exiled_names: Array[String] = []
 	for n in data.get("exiled_names", []):

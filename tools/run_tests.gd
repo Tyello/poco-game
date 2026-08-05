@@ -41,6 +41,11 @@ func _run_all() -> void:
 	test_population_deterministic()
 	test_surnames_deterministic()
 	test_bio_and_mood_dont_crash()
+	test_agua_sector_generic()
+	test_energy_chain_penalizes_other_sectors()
+	test_upgrade_guards()
+	test_production_breakdown_consistency()
+	test_save_load_parts_and_upgrades()
 
 # --------------------------------------------------------------- testes
 
@@ -50,29 +55,46 @@ func test_initial_state() -> void:
 	_check(s.residents.size() == Balance.POP_SIZE, "população inicial = %d" % Balance.POP_SIZE)
 	_check(s.count_state("sabe") == Balance.SEED_KNOWERS_COUNT, "%d sementes de verdade" % Balance.SEED_KNOWERS_COUNT)
 	_check(s.attention == Balance.ATTENTION_PER_TURN, "%d ações por turno" % Balance.ATTENTION_PER_TURN)
-	var staff_ok := true
+	# Com BASE_STAFF * SYSTEMS.size() >= POP_SIZE (Parte C: 4 setores), a
+	# escala satura — todo mundo fica staffed, dividido o mais igual
+	# possível entre os setores (round-robin por índice), não necessariamente
+	# BASE_STAFF por setor. Ver docs/10 Parte C — retunar fica pro sweep.
+	var total_staffed := 0
+	var staff_balanced := true
+	var expected_per_sys := Balance.POP_SIZE / Balance.SYSTEMS.size()
 	for sys in Balance.SYSTEMS:
-		if s.active_workers(sys) != Balance.BASE_STAFF:
-			staff_ok = false
-	_check(staff_ok, "%d trabalhadores por sistema" % Balance.BASE_STAFF)
+		var w := s.active_workers(sys)
+		total_staffed += w
+		if absi(w - expected_per_sys) > 1:
+			staff_balanced = false
+	_check(total_staffed <= Balance.POP_SIZE, "trabalhadores staffed não excedem a população")
+	_check(staff_balanced, "trabalhadores distribuídos ~igualmente entre setores (~%d cada)" % expected_per_sys)
 
 func test_production_math() -> void:
 	var g := SimGame.new()
 	var s := g.new_game(1)
-	var expected := s.active_workers("Ar") * 8.0 * (1.0 - s.suspicion / Balance.SUS_PENALTY_DIV)
+	var expected := s.active_workers("Ar") * s.effective_yield("Ar") * s.energy_factor() * (1.0 - s.suspicion / Balance.SUS_PENALTY_DIV)
 	_check(absf(s.production("Ar") - expected) < 0.001, "produção = trabalhadores * yield * penalidade")
 
 func test_isolate_backfills() -> void:
 	var g := SimGame.new()
 	var s := g.new_game(1)
 	var before := s.active_workers("Ar")
+	# Com BASE_STAFF * SYSTEMS.size() >= POP_SIZE (Parte C), pode não sobrar
+	# sobressalente algum — nesse caso o posto perde 1 trabalhador mesmo.
+	var had_spare := false
+	for r in s.residents:
+		if r.job == "" and not r.isolated:
+			had_spare = true
+			break
 	var target: Resident = null
 	for r in s.residents:
 		if r.job == "Ar" and not r.isolated:
 			target = r
 			break
 	g.isolate(target)
-	_check(s.active_workers("Ar") == before, "sobressalente cobre o posto do isolado (trabalhadores mantidos)")
+	var expected := before if had_spare else before - 1
+	_check(s.active_workers("Ar") == expected, "sobressalente cobre o posto do isolado quando existe (senão o posto perde 1)")
 
 func test_exile_raises_floor() -> void:
 	var g := SimGame.new()
@@ -290,15 +312,98 @@ func test_bio_and_mood_dont_crash() -> void:
 			ok = false
 	_check(ok, "bio() e mood() retornam texto não-vazio para todos os moradores")
 
+# ---------------------------------------------------------------- Parte C
+
+func test_agua_sector_generic() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(7)
+	_check(Balance.SYSTEMS.has("Água"), "Água está em Balance.SYSTEMS")
+	_check(s.res.has("Água"), "Água tem recurso inicial (Balance.RES_START)")
+	_check(s.active_workers("Água") > 0, "Água tem trabalhadores staffed, como os demais setores")
+	_check(s.production("Água") > 0.0, "Água produz (mesma fórmula genérica dos outros setores)")
+	_check(s.net_delta("Água") == s.production("Água") - s.consumption(), "net_delta(Água) usa a mesma fórmula genérica")
+
+func test_energy_chain_penalizes_other_sectors() -> void:
+	var s := WorldState.new()
+	s.rng = SeededRng.new(1)
+	s.res = Balance.RES_START.duplicate()
+	s.residents = []
+	s.residents.append(Resident.new(0, "X", "Ar"))
+	s.residents.append(Resident.new(1, "Y", "Energia"))
+
+	_check(is_equal_approx(s.energy_factor(), 1.0), "energy_factor() = 1.0 com Energia acima do limiar")
+	var ar_full := s.production("Ar")
+	var energia_full := s.production("Energia")
+
+	s.res["Energia"] = Balance.ENERGY_CHAIN_THRESHOLD - 1.0
+	_check(is_equal_approx(s.energy_factor(), Balance.ENERGY_CHAIN_PENALTY), "energy_factor() cai com Energia abaixo do limiar")
+	var ar_low := s.production("Ar")
+	var energia_low := s.production("Energia")
+
+	_check(ar_low < ar_full, "produção de Ar cai quando Energia está baixa")
+	_check(is_equal_approx(ar_low, ar_full * Balance.ENERGY_CHAIN_PENALTY), "queda de Ar usa exatamente ENERGY_CHAIN_PENALTY")
+	_check(is_equal_approx(energia_low, energia_full), "produção da própria Energia não se autopenaliza")
+
+func test_upgrade_guards() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(3)
+	_check(not g.upgrade("Ar"), "upgrade falha sem peças suficientes")
+	_check(not g.upgrade("SetorInexistente"), "upgrade falha para setor fora de Balance.SYSTEMS")
+
+	s.parts = Balance.UPGRADE_PARTS_COST * (Balance.UPGRADE_MAX_LEVEL + 2)
+	var attention_before := s.attention
+	var parts_before := s.parts
+	_check(g.upgrade("Ar"), "upgrade sucede com peças e atenção suficientes")
+	_check(s.attention == attention_before - 1, "upgrade custa 1 atenção")
+	_check(is_equal_approx(s.parts, parts_before - Balance.UPGRADE_PARTS_COST), "upgrade custa UPGRADE_PARTS_COST peças")
+	_check(s.sector_upgrades.get("Ar", 0) == 1, "upgrade incrementa o nível do setor")
+
+	for _i in Balance.UPGRADE_MAX_LEVEL - 1:
+		s.attention = Balance.ATTENTION_PER_TURN
+		g.upgrade("Ar")
+	_check(s.sector_upgrades.get("Ar", 0) == Balance.UPGRADE_MAX_LEVEL, "upgrade chega ao nível máximo")
+	s.attention = Balance.ATTENTION_PER_TURN
+	_check(not g.upgrade("Ar"), "upgrade falha no nível máximo (mesmo com atenção e peças)")
+
+	s.attention = 0
+	_check(not g.upgrade("Comida"), "upgrade falha sem atenção")
+
+func test_production_breakdown_consistency() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(11)
+	for sys in Balance.SYSTEMS:
+		var b := s.production_breakdown(sys)
+		_check(is_equal_approx(b["gross"], b["workers"] * b["yield_per_worker"]), "breakdown(%s): gross = workers * yield_per_worker" % sys)
+		_check(is_equal_approx(b["net_production"], s.production(sys)), "breakdown(%s): net_production bate com production()" % sys)
+		_check(is_equal_approx(b["consumption_share"], s.consumption() / Balance.SYSTEMS.size()), "breakdown(%s): consumption_share correto" % sys)
+
+func test_save_load_parts_and_upgrades() -> void:
+	var s := WorldState.new()
+	s.rng = SeededRng.new(1)
+	s.res = Balance.RES_START.duplicate()
+	s.residents = []
+	s.parts = 12.5
+	s.sector_upgrades = {"Ar": 2, "Água": 1}
+	var data := SaveData.to_dict(s)
+	var loaded := SaveData.from_dict(data)
+	_check(is_equal_approx(loaded.parts, 12.5), "save/load preserva WorldState.parts")
+	_check(loaded.sector_upgrades.get("Ar", 0) == 2 and loaded.sector_upgrades.get("Água", 0) == 1, "save/load preserva WorldState.sector_upgrades")
+
 func _snapshot(s: WorldState) -> String:
-	var parts := [
+	var bits := [
 		"turn=%d" % s.turn, "sus=%.3f" % s.suspicion, "reb=%.3f" % s.rebellion,
-		"ar=%.3f" % s.res["Ar"], "en=%.3f" % s.res["Energia"], "co=%.3f" % s.res["Comida"],
 		"cons=%.5f" % s.cons_rate, "won=%s" % str(s.won), "over=%s" % str(s.over),
+		"parts=%.3f" % s.parts,
 	]
+	for sys in Balance.SYSTEMS:
+		bits.append("%s=%.3f" % [sys, s.res[sys]])
+	var upgrade_keys := s.sector_upgrades.keys()
+	upgrade_keys.sort()
+	for k in upgrade_keys:
+		bits.append("up_%s=%d" % [k, s.sector_upgrades[k]])
 	for r in s.residents:
-		parts.append("%d:%s:%s:%s:%s:%s:%s" % [r.id, r.job, r.state, str(r.isolated), ",".join(r.traits), r.given_name, r.surname])
-	return "|".join(parts)
+		bits.append("%d:%s:%s:%s:%s:%s:%s" % [r.id, r.job, r.state, str(r.isolated), ",".join(r.traits), r.given_name, r.surname])
+	return "|".join(bits)
 
 # --------------------------------------------------------- utilidades
 

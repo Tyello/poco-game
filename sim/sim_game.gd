@@ -186,6 +186,24 @@ func exile(r: Resident) -> bool:
 		_backfill(job)
 	return true
 
+## Investe peças num upgrade permanente de rendimento do setor `sys`.
+## Custa 1 atenção + Balance.UPGRADE_PARTS_COST peças. Falha (sem alterar
+## estado) se: sem atenção, peças insuficientes, setor já no nível máximo,
+## ou `sys` não existe em Balance.SYSTEMS.
+func upgrade(sys: String) -> bool:
+	if s.attention <= 0 or not Balance.SYSTEMS.has(sys):
+		return false
+	if s.parts < Balance.UPGRADE_PARTS_COST:
+		return false
+	var lvl: int = s.sector_upgrades.get(sys, 0)
+	if lvl >= Balance.UPGRADE_MAX_LEVEL:
+		return false
+	s.attention -= 1
+	s.parts -= Balance.UPGRADE_PARTS_COST
+	s.sector_upgrades[sys] = lvl + 1
+	_log("Upgrade em %s: nível %d (rendimento +%.1f/trabalhador)." % [sys, lvl + 1, Balance.UPGRADE_YIELD_BONUS])
+	return true
+
 func reintegrate(r: Resident) -> bool:
 	if r == null or not r.isolated:
 		return false
@@ -200,7 +218,7 @@ func reintegrate(r: Resident) -> bool:
 
 # ---------------------------------------------------------------- turno
 # Ordem canônica: recursos -> difusão -> pressão de base -> vazamento
-# dos isolados -> suspeita -> rebelião -> escalada -> checagem de fim.
+# dos isolados -> suspeita -> rebelião -> escalada -> peças -> checagem de fim.
 
 func advance_turn() -> void:
 	if s.over:
@@ -268,7 +286,12 @@ func advance_turn() -> void:
 	var kc := s.count_state("sabe")
 	var dc := s.count_state("desconfiada")
 	var g := kc * Balance.SUS_PER_KNOWER + dc * Balance.SUS_PER_DOUBTER
-	if s.res["Ar"] < Balance.LOW_RES_THRESHOLD or s.res["Energia"] < Balance.LOW_RES_THRESHOLD or s.res["Comida"] < Balance.LOW_RES_THRESHOLD:
+	var any_low_res := false
+	for sys in Balance.SYSTEMS:
+		if s.res[sys] < Balance.LOW_RES_THRESHOLD:
+			any_low_res = true
+			break
+	if any_low_res:
 		g += Balance.LOW_RES_SUS
 	s.suspicion = clampf(s.suspicion + g, 0.0, 100.0)
 	if s.suspicion < Balance.SUS_DECAY_BELOW:
@@ -285,14 +308,21 @@ func advance_turn() -> void:
 	# 5. Escalada
 	s.cons_rate += Balance.CONS_CREEP
 
+	# 5b. Peças — trickle passivo, financia upgrades (Parte C)
+	s.parts += Balance.PARTS_PER_TURN
+
 	# 6. Condições de fim
 	var reason := ""
-	if s.res["Ar"] <= 0.0:
-		reason = "o ar acabou"
-	elif s.res["Energia"] <= 0.0:
-		reason = "o gerador morreu"
-	elif s.res["Comida"] <= 0.0:
-		reason = "a fome venceu"
+	var collapse_msgs := {
+		"Ar": "o ar acabou",
+		"Energia": "o gerador morreu",
+		"Comida": "a fome venceu",
+		"Água": "a água secou",
+	}
+	for sys in Balance.SYSTEMS:
+		if s.res[sys] <= 0.0:
+			reason = collapse_msgs.get(sys, "%s acabou" % sys)
+			break
 	if reason != "":
 		_finish(false, "Colapso físico — %s." % reason)
 		return
