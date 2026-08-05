@@ -100,11 +100,7 @@ func _build_ui() -> void:
 	well_row.add_theme_constant_override("separation", 6)
 	mid.add_child(well_row)
 
-	var axis := ColorRect.new()
-	axis.color = Color(0.35, 0.38, 0.45)
-	axis.custom_minimum_size = Vector2(3, 0)
-	axis.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	well_row.add_child(axis)
+	well_row.add_child(WellAxis.new())
 
 	var well_scroll := ScrollContainer.new()
 	well_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -314,7 +310,7 @@ func _render() -> void:
 		if group != last_group:
 			well_column.add_child(_build_stratum_header(group, stratum["tint"]))
 			last_group = group
-		well_column.add_child(_build_floor(stratum["sys"], stratum["title"], stratum["tint"]))
+		well_column.add_child(_build_floor(stratum["sys"], stratum["title"], stratum["tint"], stratum["icon"]))
 	well_column.add_child(_build_reserve_panel())
 
 	_render_selection()
@@ -417,11 +413,23 @@ func _state_color(r: Resident) -> Color:
 		return ISOLATED_COLOR
 	return _truth_color(r)
 
+## Painel de andar: leve indicação de profundidade (borda interna hairline)
+## e, em crise, um alarme inequívoco (borda vermelha grossa) — identificável
+## em <1s, sem precisar ler números (docs/05, checklist Fase 5).
 func _floor_style(tint: Color, crisis: bool) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = tint.lerp(DANGER_COLOR, 0.35) if crisis else tint
-	style.content_margin_left = 10
-	style.content_margin_right = 10
+	style.bg_color = tint.lerp(DANGER_COLOR, 0.45) if crisis else tint
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	style.border_color = DANGER_COLOR if crisis else Palette.HAIRLINE.lightened(0.05)
+	style.border_width_left = 2 if crisis else 1
+	style.border_width_right = 2 if crisis else 1
+	style.border_width_top = 2 if crisis else 1
+	style.border_width_bottom = 2 if crisis else 1
+	style.content_margin_left = 12
+	style.content_margin_right = 12
 	style.content_margin_top = 8
 	style.content_margin_bottom = 8
 	return style
@@ -441,9 +449,18 @@ func _build_stratum_header(title: String, tint: Color) -> Control:
 	margin.add_child(label)
 	return margin
 
+## Separador hairline entre o cabeçalho de um andar e o corpo (moradores/log) —
+## dá a sensação de painel desenhado, não de retângulo chapado.
+func _hairline() -> Control:
+	var line := ColorRect.new()
+	line.color = Palette.HAIRLINE
+	line.custom_minimum_size = Vector2(0, 1)
+	return line
+
 ## Um andar-setor da coluna do Poço. sys == "" monta a Coroa (sem recurso,
-## só alerta da verdade + última linha do registro).
-func _build_floor(sys: String, title: String, tint: Color) -> Control:
+## só alerta da verdade + última linha do registro) — a "vitrine da mentira":
+## o alerta de verdade e o topo do diário moram nela.
+func _build_floor(sys: String, title: String, tint: Color, icon_name: String) -> Control:
 	var crisis: bool = sys != "" and s.res[sys] < RES_WARN_MIN
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", _floor_style(tint, crisis))
@@ -453,23 +470,33 @@ func _build_floor(sys: String, title: String, tint: Color) -> Control:
 	panel.add_child(col)
 
 	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 10)
+	header.add_theme_constant_override("separation", 8)
 	col.add_child(header)
+	header.add_child(Icons.rect(icon_name, Palette.INK, 18))
 
 	if sys == "":
 		var title_label := Label.new()
 		title_label.text = title
-		title_label.custom_minimum_size = Vector2(170, 0)
+		title_label.add_theme_font_size_override("font_size", 16)
+		title_label.add_theme_color_override("font_color", Palette.SELECTED)
+		title_label.custom_minimum_size = Vector2(150, 0)
 		header.add_child(title_label)
 		var knowers := s.count_state("sabe")
-		var alert := Label.new()
+		var alert := HBoxContainer.new()
+		alert.add_theme_constant_override("separation", 4)
 		if knowers > 0:
-			alert.text = "%d morador(es) sabem — aja" % knowers
-			alert.add_theme_color_override("font_color", KNOW_COLOR)
+			alert.add_child(Icons.rect("triangle-alert", KNOW_COLOR, 14))
+			var alert_label := Label.new()
+			alert_label.text = "%d morador(es) sabem — aja" % knowers
+			alert_label.add_theme_color_override("font_color", KNOW_COLOR)
+			alert.add_child(alert_label)
 		else:
-			alert.text = "Tudo calmo."
-			alert.add_theme_color_override("font_color", Color(0.6, 0.65, 0.6))
+			var alert_label2 := Label.new()
+			alert_label2.text = "Tudo calmo."
+			alert_label2.add_theme_color_override("font_color", OK_COLOR)
+			alert.add_child(alert_label2)
 		header.add_child(alert)
+		col.add_child(_hairline())
 		var crown_log := RichTextLabel.new()
 		crown_log.bbcode_enabled = true
 		crown_log.custom_minimum_size = Vector2(0, 110)
@@ -483,7 +510,7 @@ func _build_floor(sys: String, title: String, tint: Color) -> Control:
 
 	var title_btn := Button.new()
 	title_btn.text = title
-	title_btn.custom_minimum_size = Vector2(170, 0)
+	title_btn.custom_minimum_size = Vector2(150, 0)
 	title_btn.flat = selected_sector != sys
 	title_btn.pressed.connect(_on_select_sector.bind(sys))
 	header.add_child(title_btn)
@@ -491,11 +518,24 @@ func _build_floor(sys: String, title: String, tint: Color) -> Control:
 	header.add_child(_build_meter(sys, s.res[sys], false))
 	var stats := Label.new()
 	stats.text = "trabalhadores: %d — líquido/turno: %+.1f" % [s.active_workers(sys), s.net_delta(sys)]
+	stats.add_theme_color_override("font_color", Palette.INK_DIM)
 	header.add_child(stats)
 
+	if crisis:
+		var crisis_tag := HBoxContainer.new()
+		crisis_tag.add_theme_constant_override("separation", 4)
+		crisis_tag.add_child(Icons.rect("triangle-alert", DANGER_COLOR, 14))
+		var crisis_label := Label.new()
+		crisis_label.text = "CRISE"
+		crisis_label.add_theme_color_override("font_color", DANGER_COLOR)
+		crisis_tag.add_child(crisis_label)
+		header.add_child(crisis_tag)
+
+	col.add_child(_hairline())
+
 	var cells := HFlowContainer.new()
-	cells.add_theme_constant_override("h_separation", 4)
-	cells.add_theme_constant_override("v_separation", 4)
+	cells.add_theme_constant_override("h_separation", 5)
+	cells.add_theme_constant_override("v_separation", 5)
 	col.add_child(cells)
 	for r in s.residents:
 		if r.job == sys:
@@ -507,50 +547,88 @@ func _build_reserve_panel() -> Control:
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", _panel_style())
 	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
 	panel.add_child(col)
-	col.add_child(_section_title("Reserva (sem posto)"))
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	header.add_child(Icons.rect("users", Palette.INK_DIM, 16))
+	header.add_child(_section_title("Reserva (sem posto)"))
+	col.add_child(header)
+	col.add_child(_hairline())
 	var cells := HFlowContainer.new()
-	cells.add_theme_constant_override("h_separation", 4)
-	cells.add_theme_constant_override("v_separation", 4)
+	cells.add_theme_constant_override("h_separation", 5)
+	cells.add_theme_constant_override("v_separation", 5)
 	col.add_child(cells)
 	for r in s.residents:
 		if r.job == "":
 			cells.add_child(_build_cell(r))
 	return panel
 
-## Célula clicável de um morador, colorida pelo estágio de verdade.
-## Isolados mantêm a cor de fundo neutra mas ganham uma borda com a cor
-## "de verdade" — dá para ver estado E isolamento na mesma célula.
-func _build_cell(r: Resident) -> Button:
+const CHIP_SIZE := 34
+
+## Estilo circular (corner_radius = metade do tamanho) para o monograma
+## do morador — "ficha limpa", não retângulo.
+func _chip_style(bg: Color, border: Color, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.corner_radius_top_left = CHIP_SIZE / 2
+	style.corner_radius_top_right = CHIP_SIZE / 2
+	style.corner_radius_bottom_left = CHIP_SIZE / 2
+	style.corner_radius_bottom_right = CHIP_SIZE / 2
+	if border_width > 0:
+		style.border_color = border
+		style.border_width_left = border_width
+		style.border_width_right = border_width
+		style.border_width_top = border_width
+		style.border_width_bottom = border_width
+	return style
+
+## Ficha clicável de um morador: monograma num círculo, colorido pelo
+## estágio de verdade. Isolados mantêm a cor de fundo neutra mas ganham
+## uma borda com a cor "de verdade" — dá para ver estado E isolamento na
+## mesma ficha. Micro-indicadores de vínculo/traço ficam sobrepostos no
+## canto inferior direito, sem atrapalhar o clique.
+func _build_cell(r: Resident) -> Control:
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(CHIP_SIZE, CHIP_SIZE)
+
 	var btn := Button.new()
-	btn.custom_minimum_size = Vector2(34, 26)
-	var icon := ""
-	if not r.traits.is_empty():
-		icon += "✦"
-	if not s.bonded_with(r.id).is_empty():
-		icon += "♥"
-	btn.text = r.given_name.substr(0, 2) + ("\n" + icon if icon != "" else "")
+	btn.anchor_right = 1.0
+	btn.anchor_bottom = 1.0
+	btn.text = r.given_name.substr(0, 2).to_upper()
+	btn.add_theme_font_override("font", UiTheme.semibold_font())
+
 	var job_text := r.job if r.job != "" else "sobressalente"
 	var state_text := "sabe" if r.state == "sabe" else ("desconfia" if r.state == "desconfiada" else "tranquila")
 	btn.tooltip_text = "%s — %s — %s%s" % [r.given_name, job_text, state_text, " (isolada)" if r.isolated else ""]
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = _state_color(r)
-	if r.isolated:
-		style.border_color = _truth_color(r)
-		style.border_width_left = 2
-		style.border_width_right = 2
-		style.border_width_top = 2
-		style.border_width_bottom = 2
-	if r.id == selected_id:
-		style.border_color = Color(1, 1, 1)
-		style.border_width_left = 2
-		style.border_width_right = 2
-		style.border_width_top = 2
-		style.border_width_bottom = 2
-	btn.add_theme_stylebox_override("normal", style)
+	var bg := _state_color(r)
+	var border := _truth_color(r) if r.isolated else Palette.SELECTED
+	var border_width := 2 if (r.isolated or r.id == selected_id) else 0
+	btn.add_theme_stylebox_override("normal", _chip_style(bg, border, border_width))
+	btn.add_theme_stylebox_override("hover", _chip_style(bg.lightened(0.15), border, maxi(border_width, 1)))
+	btn.add_theme_stylebox_override("pressed", _chip_style(bg.darkened(0.15), border, border_width))
 	btn.pressed.connect(_on_select_resident.bind(r))
-	return btn
+	wrap.add_child(btn)
+
+	if not s.bonded_with(r.id).is_empty():
+		wrap.add_child(_badge("heart", Vector2(-13, -13)))
+	if not r.traits.is_empty():
+		wrap.add_child(_badge("sparkles", Vector2(-13, 2)))
+
+	return wrap
+
+## Micro-indicador (vínculo/traço) sobreposto no canto da ficha do morador —
+## ignora o mouse para não atrapalhar o clique no monograma.
+func _badge(icon_name: String, offset: Vector2) -> Control:
+	var badge := Icons.rect(icon_name, Palette.SELECTED, 11)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.anchor_left = 1.0
+	badge.anchor_right = 1.0
+	badge.anchor_top = 1.0
+	badge.anchor_bottom = 1.0
+	badge.position = offset
+	return badge
 
 func _on_select_resident(r: Resident) -> void:
 	selected_id = r.id
