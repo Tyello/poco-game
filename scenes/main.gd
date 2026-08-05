@@ -276,16 +276,26 @@ func _on_advance_turn() -> void:
 
 func _on_save() -> void:
 	game.save_game()
-	status_label.text = "Jogo salvo."
+	_flash_status("Jogo salvo.")
 
 func _on_load() -> void:
 	if game.load_game():
 		s = game.s
 		selected_id = -1
 		_render()
-		status_label.text = "Jogo carregado."
+		_flash_status("Jogo carregado.")
 	else:
-		status_label.text = "Nenhum save encontrado."
+		_flash_status("Nenhum save encontrado.")
+
+## Toast discreto: aparece, segura um instante, some — em vez de um texto
+## que fica preso na tela. Restrição proposital (docs/11, Parte E).
+func _flash_status(text: String) -> void:
+	status_label.text = text
+	status_label.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(status_label, "modulate:a", 1.0, 0.12)
+	tw.tween_interval(1.6)
+	tw.tween_property(status_label, "modulate:a", 0.0, 0.5)
 
 func _on_isolate(r: Resident) -> void:
 	game.isolate(r)
@@ -339,6 +349,10 @@ func _render() -> void:
 			last_group = group
 		well_column.add_child(_build_floor(stratum["sys"], stratum["title"], stratum["tint"], stratum["icon"]))
 	well_column.add_child(_build_reserve_panel())
+
+	well_column.modulate.a = 0.55
+	var turn_tw := create_tween()
+	turn_tw.tween_property(well_column, "modulate:a", 1.0, 0.25).set_trans(Tween.TRANS_SINE)
 
 	_render_selection()
 
@@ -572,12 +586,14 @@ func _build_floor(sys: String, title: String, tint: Color, icon_name: String) ->
 	if crisis:
 		var crisis_tag := HBoxContainer.new()
 		crisis_tag.add_theme_constant_override("separation", 4)
-		crisis_tag.add_child(Icons.rect("triangle-alert", DANGER_COLOR, 14))
+		var crisis_icon := Icons.rect("triangle-alert", DANGER_COLOR, 14)
+		crisis_tag.add_child(crisis_icon)
 		var crisis_label := Label.new()
 		crisis_label.text = "CRISE"
 		crisis_label.add_theme_color_override("font_color", DANGER_COLOR)
 		crisis_tag.add_child(crisis_label)
 		header.add_child(crisis_tag)
+		_pulse(crisis_icon)
 
 	col.add_child(_hairline())
 
@@ -630,6 +646,23 @@ func _chip_style(bg: Color, border: Color, border_width: int) -> StyleBoxFlat:
 		style.border_width_top = border_width
 		style.border_width_bottom = border_width
 	return style
+
+## Pulso lento e contínuo (alarme de crise) — nunca pisca rápido, só
+## respira. Criado de novo a cada _render(), então some sozinho quando o
+## nó é destruído (sem tween pendurado).
+func _pulse(control: CanvasItem) -> void:
+	var tw := create_tween()
+	tw.set_loops()
+	tw.tween_property(control, "modulate:a", 0.35, 0.9).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(control, "modulate:a", 1.0, 0.9).set_trans(Tween.TRANS_SINE)
+
+## Micro-feedback de hover: leve escala num controle, sem depender de
+## shaders. Usado nos chips de morador — resposta tátil discreta.
+func _pop_scale(control: Control, target: float) -> void:
+	if not is_instance_valid(control):
+		return
+	var tw := create_tween()
+	tw.tween_property(control, "scale", Vector2(target, target), 0.1)
 
 ## Igual a _chip_style mas com tamanho arbitrário — usado no monograma
 ## maior da ficha-dossiê.
@@ -694,6 +727,9 @@ func _build_cell(r: Resident) -> Control:
 	btn.add_theme_stylebox_override("hover", _chip_style(bg.lightened(0.15), border, maxi(border_width, 1)))
 	btn.add_theme_stylebox_override("pressed", _chip_style(bg.darkened(0.15), border, border_width))
 	btn.pressed.connect(_on_select_resident.bind(r))
+	btn.pivot_offset = Vector2(CHIP_SIZE, CHIP_SIZE) / 2.0
+	btn.mouse_entered.connect(_pop_scale.bind(btn, 1.12))
+	btn.mouse_exited.connect(_pop_scale.bind(btn, 1.0))
 	wrap.add_child(btn)
 
 	if not s.bonded_with(r.id).is_empty():
