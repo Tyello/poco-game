@@ -4,18 +4,18 @@ extends Control
 ## Nada aqui vaza para dentro de sim/ — esta cena só chama métodos
 ## públicos de SimGame e lê campos de WorldState (ver CLAUDE.md, regra 1).
 
-const OK_COLOR := Color(0.30, 0.75, 0.40)
-const DOUBT_COLOR := Color(0.85, 0.65, 0.15)
-const KNOW_COLOR := Color(0.80, 0.20, 0.20)
-const ISOLATED_COLOR := Color(0.55, 0.55, 0.60)
-const METER_GOOD := Color(0.30, 0.75, 0.40)
-const METER_WARN := Color(0.85, 0.65, 0.15)
-const METER_BAD := Color(0.80, 0.20, 0.20)
-const BG_COLOR := Color(0.08, 0.09, 0.11)
-const PANEL_COLOR := Color(0.13, 0.14, 0.17)
-const PIP_ON := Color(0.85, 0.80, 0.30)
-const PIP_OFF := Color(0.30, 0.30, 0.33)
-const DANGER_COLOR := Color(0.80, 0.20, 0.20)
+const OK_COLOR := Palette.TRUTH_CALM
+const DOUBT_COLOR := Palette.TRUTH_DOUBTS
+const KNOW_COLOR := Palette.TRUTH_KNOWS
+const ISOLATED_COLOR := Palette.ISOLATED
+const METER_GOOD := Palette.GOOD
+const METER_WARN := Palette.WARN
+const METER_BAD := Palette.BAD
+const BG_COLOR := Palette.BG
+const PANEL_COLOR := Palette.PANEL
+const PIP_ON := Palette.WARN
+const PIP_OFF := Palette.PANEL_RAISED
+const DANGER_COLOR := Palette.BAD
 
 const RES_GOOD_MIN := 50.0
 const RES_WARN_MIN := 25.0
@@ -26,11 +26,11 @@ const SOCIAL_BAD_MIN := 60.0
 ## "group" agrupa vários andares sob um mesmo cabeçalho de estrato (Parte D:
 ## corte lateral com mais andares — ver docs/10 Parte D).
 const STRATA := [
-	{"sys": "", "title": "A Coroa", "tint": Color(0.11, 0.14, 0.20), "group": "A Coroa"},
-	{"sys": "Comida", "title": "Fazendas", "tint": Color(0.11, 0.17, 0.13), "group": "Os Meios"},
-	{"sys": "Água", "title": "Reservatório", "tint": Color(0.11, 0.17, 0.13), "group": "Os Meios"},
-	{"sys": "Ar", "title": "Filtragem", "tint": Color(0.11, 0.17, 0.13), "group": "Os Meios"},
-	{"sys": "Energia", "title": "Gerador", "tint": Color(0.20, 0.16, 0.10), "group": "As Entranhas"},
+	{"sys": "", "title": "A Coroa", "tint": Palette.STRATUM_CROWN, "group": "A Coroa", "icon": "crown"},
+	{"sys": "Comida", "title": "Fazendas", "tint": Palette.STRATUM_MEIOS, "group": "Os Meios", "icon": "wheat"},
+	{"sys": "Água", "title": "Reservatório", "tint": Palette.STRATUM_MEIOS, "group": "Os Meios", "icon": "droplets"},
+	{"sys": "Ar", "title": "Filtragem", "tint": Palette.STRATUM_MEIOS, "group": "Os Meios", "icon": "wind"},
+	{"sys": "Energia", "title": "Gerador", "tint": Palette.STRATUM_ENTRANHAS, "group": "As Entranhas", "icon": "zap"},
 ]
 
 var game: SimGame
@@ -67,6 +67,7 @@ func _ready() -> void:
 func _build_ui() -> void:
 	anchor_right = 1.0
 	anchor_bottom = 1.0
+	theme = UiTheme.build()
 
 	var bg := ColorRect.new()
 	bg.color = BG_COLOR
