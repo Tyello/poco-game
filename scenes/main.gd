@@ -88,10 +88,15 @@ func _build_ui() -> void:
 	mid.add_theme_constant_override("separation", 10)
 	root_layout.add_child(mid)
 
+	var log_col := VBoxContainer.new()
+	log_col.custom_minimum_size = Vector2(220, 0)
+	log_col.add_theme_constant_override("separation", 6)
+	mid.add_child(log_col)
+	log_col.add_child(_section_title("Diário"))
 	log_label = RichTextLabel.new()
 	log_label.bbcode_enabled = true
-	log_label.custom_minimum_size = Vector2(220, 0)
-	mid.add_child(log_label)
+	log_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	log_col.add_child(log_label)
 
 	# --- eixo central (escada) + coluna do Poço ---
 	var well_row := HBoxContainer.new()
@@ -141,33 +146,39 @@ func _build_hud_panel() -> void:
 	col.add_theme_constant_override("separation", 8)
 	panel.add_child(col)
 
-	# --- linha de ações + atenção/turno ---
+	# --- toolbar de ações (ícone + rótulo), agrupada por função ---
 	actions_box = HBoxContainer.new()
 	actions_box.add_theme_constant_override("separation", 6)
 	col.add_child(actions_box)
+	const SECTOR_ICON := {"Ar": "wind", "Energia": "zap", "Comida": "wheat", "Água": "droplets"}
 	for sys in Balance.SYSTEMS:
-		_add_action_button("Reparar %s" % sys, _on_patch.bind(sys))
-	_add_action_button("Acalmar", func(): _do(game.calm()))
-	_add_free_button("Salvar", func(): _on_save())
-	_add_free_button("Carregar", func(): _on_load())
-
-	status_label = Label.new()
-	status_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-	col.add_child(status_label)
+		_add_action_button("Reparar %s" % sys, SECTOR_ICON.get(sys, ""), _on_patch.bind(sys))
+	_add_action_button("Acalmar", "shield", func(): _do(game.calm()))
+	actions_box.add_child(_toolbar_separator())
+	_add_free_button("Salvar", "save", func(): _on_save())
+	_add_free_button("Carregar", "download", func(): _on_load())
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	actions_box.add_child(spacer)
 
+	# pips de atenção: claros, com o número ao lado (docs/05, Parte C)
 	for i in range(Balance.ATTENTION_PER_TURN):
 		var pip := ColorRect.new()
-		pip.custom_minimum_size = Vector2(14, 14)
+		pip.custom_minimum_size = Vector2(12, 12)
 		attention_pips.append(pip)
 		actions_box.add_child(pip)
 	attention_label = Label.new()
+	attention_label.add_theme_font_override("font", UiTheme.mono_font())
 	actions_box.add_child(attention_label)
+	actions_box.add_child(_toolbar_separator())
 	turn_label = Label.new()
+	turn_label.add_theme_font_override("font", UiTheme.semibold_font())
 	actions_box.add_child(turn_label)
+
+	status_label = Label.new()
+	status_label.add_theme_color_override("font_color", Palette.INK_FAINT)
+	col.add_child(status_label)
 
 	# --- título + medidores de recursos ---
 	col.add_child(_section_title("Recursos"))
@@ -202,19 +213,34 @@ func _panel_style() -> StyleBoxFlat:
 	style.content_margin_bottom = 10
 	return style
 
-func _add_action_button(label: String, on_press: Callable) -> void:
+## Monta um botão ícone + rótulo dentro de um HBoxContainer (Button não
+## aceita ícone e texto juntos sem um ícone importado como Texture2D
+## registrado no theme — mais simples e explícito montar na mão).
+func _icon_button(label: String, icon_name: String) -> Button:
 	var b := Button.new()
 	b.text = label
+	if icon_name != "":
+		b.icon = Icons.texture(icon_name, 14)
+		b.add_theme_constant_override("h_separation", 6)
+	return b
+
+func _add_action_button(label: String, icon_name: String, on_press: Callable) -> void:
+	var b := _icon_button(label, icon_name)
 	b.pressed.connect(on_press)
 	actions_box.add_child(b)
 	action_buttons.append(b)
 
 ## Botão que não depende de atenção restante (ex.: Salvar/Carregar).
-func _add_free_button(label: String, on_press: Callable) -> void:
-	var b := Button.new()
-	b.text = label
+func _add_free_button(label: String, icon_name: String, on_press: Callable) -> void:
+	var b := _icon_button(label, icon_name)
 	b.pressed.connect(on_press)
 	actions_box.add_child(b)
+
+func _toolbar_separator() -> Control:
+	var sep := ColorRect.new()
+	sep.color = Palette.HAIRLINE
+	sep.custom_minimum_size = Vector2(1, 20)
+	return sep
 
 func _danger_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
@@ -298,9 +324,9 @@ func _render() -> void:
 
 	log_label.clear()
 	if s.story_log_lines.is_empty():
-		log_label.append_text("O diário do Poço ainda está em branco.\n")
+		log_label.append_text("[i]O diário do Poço ainda está em branco.[/i]")
 	for line in s.story_log_lines:
-		log_label.append_text(line + "\n")
+		log_label.append_text("[color=#%s]•[/color] %s\n" % [Palette.HAIRLINE.lightened(0.2).to_html(false), line])
 
 	for c in well_column.get_children():
 		c.queue_free()
@@ -328,48 +354,67 @@ func _render() -> void:
 	else:
 		root_layout.visible = true
 
-func _build_meter(label_text: String, value: float, inverted: bool, max_value: float = Balance.RES_MAX) -> Control:
-	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(90, 0)
-	var name_label := Label.new()
-	name_label.text = label_text
-	box.add_child(name_label)
+const METER_BAR_HEIGHT := 10
+
+## Barra de progresso com estilo consistente e cor por limiar aplicada na
+## stylebox de preenchimento (não em modulate — modulate desbota também o
+## fundo e o texto). Escala corretamente acima de 100 porque `max_value`
+## define o teto do próprio ProgressBar, não um clamp visual solto.
+func _meter_bar(value: float, max_value: float, inverted: bool) -> ProgressBar:
 	var bar := ProgressBar.new()
 	bar.min_value = 0.0
 	bar.max_value = max_value
 	bar.value = value
 	bar.show_percentage = false
-	bar.modulate = _meter_color(value, inverted)
-	box.add_child(bar)
+	bar.custom_minimum_size = Vector2(0, METER_BAR_HEIGHT)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = _meter_color(value, inverted)
+	fill.corner_radius_top_left = 3
+	fill.corner_radius_top_right = 3
+	fill.corner_radius_bottom_left = 3
+	fill.corner_radius_bottom_right = 3
+	bar.add_theme_stylebox_override("fill", fill)
+	return bar
+
+func _build_meter(label_text: String, value: float, inverted: bool, max_value: float = Balance.RES_MAX) -> Control:
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(96, 0)
+	box.add_theme_constant_override("separation", 3)
+	var name_label := Label.new()
+	name_label.text = label_text
+	name_label.add_theme_color_override("font_color", Palette.INK_DIM)
+	box.add_child(name_label)
+	box.add_child(_meter_bar(value, max_value, inverted))
 	var value_label := Label.new()
 	value_label.text = "%d" % int(value)
+	value_label.add_theme_font_override("font", UiTheme.mono_font())
+	value_label.add_theme_color_override("font_color", _meter_color(value, inverted))
 	box.add_child(value_label)
 	return box
 
 ## Barra da Rebelião com a marca do piso permanente (martyr_floor).
 func _build_rebellion_meter() -> Control:
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(90, 0)
+	box.custom_minimum_size = Vector2(96, 0)
+	box.add_theme_constant_override("separation", 3)
 	var name_label := Label.new()
 	name_label.text = "Rebelião"
+	name_label.add_theme_color_override("font_color", Palette.INK_DIM)
 	box.add_child(name_label)
 
 	var bar_stack := Control.new()
-	bar_stack.custom_minimum_size = Vector2(0, 24)
+	bar_stack.custom_minimum_size = Vector2(0, METER_BAR_HEIGHT)
 	box.add_child(bar_stack)
 
-	var bar := ProgressBar.new()
-	bar.min_value = 0.0
-	bar.max_value = 100.0
-	bar.value = s.rebellion
-	bar.show_percentage = false
-	bar.modulate = _meter_color(s.rebellion, true)
+	var bar := _meter_bar(s.rebellion, 100.0, true)
 	bar.anchor_right = 1.0
 	bar.anchor_bottom = 1.0
 	bar_stack.add_child(bar)
 
+	# marca do piso permanente de revolta (martyr_floor) — a barra nunca
+	# volta a cair abaixo desta marca depois de um exílio.
 	var floor_mark := ColorRect.new()
-	floor_mark.color = Color(1, 1, 1, 0.8)
+	floor_mark.color = Palette.SELECTED
 	floor_mark.custom_minimum_size = Vector2(2, 0)
 	floor_mark.anchor_top = 0.0
 	floor_mark.anchor_bottom = 1.0
@@ -380,6 +425,8 @@ func _build_rebellion_meter() -> Control:
 
 	var value_label := Label.new()
 	value_label.text = "%d (piso: %d)" % [int(s.rebellion), int(s.martyr_floor)]
+	value_label.add_theme_font_override("font", UiTheme.mono_font())
+	value_label.add_theme_color_override("font_color", _meter_color(s.rebellion, true))
 	box.add_child(value_label)
 	return box
 
