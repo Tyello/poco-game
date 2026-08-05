@@ -36,6 +36,11 @@ const NAMES := [
 	"Tomé", "Alba", "Renato", "Sônia", "Judite", "Otávio", "Flor", "Bento", "Iris", "Caio",
 	"Nina", "Elias", "Marisa", "Gil",
 ]
+const SURNAMES := [
+	"Alves", "Barros", "Cunha", "Dutra", "Esteves", "Fagundes", "Guerra", "Homem",
+	"Ibiapina", "Junqueira", "Klein", "Lacerda", "Medeiros", "Nogueira", "Osório", "Pires",
+	"Quintana", "Ramalho", "Siqueira", "Teles", "Ulhôa", "Vale", "Xavier", "Zago",
+]
 
 # --- Economia ---
 const SUS_START := 8.0
@@ -88,6 +93,12 @@ const EXILE_SUS := 8.0
 const EXILE_MARTYR_FLOOR := 22.0 # cada Saída eleva um piso PERMANENTE de rebelião
 const MARTYR_FLOOR_CAP := 100.0
 const EXILE_CONVERT_CHANCE := 0.5
+
+# --- Estratos (Fase 4, Parte B) ---
+# Rótulo temático do posto de um morador. Espelha STRATA em scenes/main.gd
+# (Fase 2) — não inventar mapeamento novo. Reaproveitado depois pelo
+# agrupamento de andares da Parte D — não expandir além disto aqui.
+const SYSTEM_STRATUM := {"Ar": "Os Meios", "Comida": "Os Meios", "Energia": "As Entranhas"}
 
 # --- Traços e vínculos (Fase 3) ---
 const TRAIT_SECOND_CHANCE := 0.5 # chance de um morador ter um 2º traço (1 é garantido)

@@ -9,6 +9,7 @@ extends RefCounted
 const POOL := [
 	"cetico", "devoto", "leal", "resmungao",
 	"curioso", "medroso", "tagarela", "reservado",
+	"protetor", "sonhador", "pragmatico", "orgulhoso",
 ]
 
 const LABELS := {
@@ -20,6 +21,10 @@ const LABELS := {
 	"medroso": "medrosa",
 	"tagarela": "tagarela",
 	"reservado": "reservada",
+	"protetor": "protetora",
+	"sonhador": "sonhadora",
+	"pragmatico": "pragmática",
+	"orgulhoso": "orgulhosa",
 }
 
 static func label(trait_id: String) -> String:

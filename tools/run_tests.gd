@@ -39,6 +39,8 @@ func _run_all() -> void:
 	test_save_load_roundtrip()
 	test_save_version_defaults_to_1()
 	test_population_deterministic()
+	test_surnames_deterministic()
+	test_bio_and_mood_dont_crash()
 
 # --------------------------------------------------------------- testes
 
@@ -257,6 +259,36 @@ func test_population_deterministic() -> void:
 			same = false
 	_check(same, "mesma seed produz os mesmos postos/estágios (escala atual: %d moradores)" % Balance.POP_SIZE)
 	_check(s1.bonds == s2.bonds, "mesma seed produz os mesmos vínculos na escala atual")
+
+## Mesma seed -> mesmos sobrenomes (determinismo), espelhando
+## test_population_deterministic (Fase 4, Parte B: sobrenomes/fichas).
+func test_surnames_deterministic() -> void:
+	var g1 := SimGame.new()
+	var s1 := g1.new_game(13)
+	var g2 := SimGame.new()
+	var s2 := g2.new_game(13)
+	var same := true
+	var all_nonempty := true
+	for i in s1.residents.size():
+		if s1.residents[i].surname != s2.residents[i].surname:
+			same = false
+		if s1.residents[i].surname == "":
+			all_nonempty = false
+	_check(same, "mesma seed produz os mesmos sobrenomes (determinismo)")
+	_check(all_nonempty, "todo morador recebe um sobrenome")
+
+## bio()/mood() são funções puras (Fase 4, Parte B) — não devem travar
+## e devem produzir texto não-vazio para qualquer morador de uma partida.
+func test_bio_and_mood_dont_crash() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(21)
+	var ok := true
+	for r in s.residents:
+		var bio_text := Story.bio(s, r)
+		var mood_text := r.mood()
+		if bio_text == "" or mood_text == "":
+			ok = false
+	_check(ok, "bio() e mood() retornam texto não-vazio para todos os moradores")
 
 func _snapshot(s: WorldState) -> String:
 	var parts := [

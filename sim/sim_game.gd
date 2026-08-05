@@ -27,7 +27,9 @@ func new_game(seed_value: int = 0) -> WorldState:
 		var job := ""
 		if i < staffed:
 			job = Balance.SYSTEMS[i % Balance.SYSTEMS.size()]
-		s.residents.append(Resident.new(i, Balance.NAMES[i], job))
+		var resident := Resident.new(i, Balance.NAMES[i], job)
+		resident.surname = s.rng.pick(Balance.SURNAMES)
+		s.residents.append(resident)
 	_seed_knowers()
 	_assign_traits()
 	_generate_bonds()

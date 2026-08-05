@@ -469,7 +469,12 @@ func _build_reserve_panel() -> Control:
 func _build_cell(r: Resident) -> Button:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(34, 26)
-	btn.text = r.given_name.substr(0, 2)
+	var icon := ""
+	if not r.traits.is_empty():
+		icon += "✦"
+	if not s.bonded_with(r.id).is_empty():
+		icon += "♥"
+	btn.text = r.given_name.substr(0, 2) + ("\n" + icon if icon != "" else "")
 	var job_text := r.job if r.job != "" else "sobressalente"
 	var state_text := "sabe" if r.state == "sabe" else ("desconfia" if r.state == "desconfiada" else "tranquila")
 	btn.tooltip_text = "%s — %s — %s%s" % [r.given_name, job_text, state_text, " (isolada)" if r.isolated else ""]
@@ -510,10 +515,12 @@ func _render_selection() -> void:
 		return
 
 	var name_label := Label.new()
-	name_label.text = r.given_name
+	name_label.text = r.full_name()
 	selection_content.add_child(name_label)
 
 	var job_text := r.job if r.job != "" else "sobressalente"
+	if r.stratum() != "":
+		job_text += " — %s" % r.stratum()
 	var info := Label.new()
 	info.text = job_text
 	info.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
@@ -524,6 +531,37 @@ func _render_selection() -> void:
 	state_label.text = state_text + (" (isolada)" if r.isolated else "")
 	state_label.add_theme_color_override("font_color", _truth_color(r))
 	selection_content.add_child(state_label)
+
+	var mood_label := Label.new()
+	mood_label.text = "Humor: %s" % r.mood()
+	mood_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+	selection_content.add_child(mood_label)
+
+	if not r.traits.is_empty():
+		var trait_labels: Array[String] = []
+		for t in r.traits:
+			trait_labels.append(Traits.label(t))
+		var traits_label := Label.new()
+		traits_label.text = "Traços: %s" % ", ".join(trait_labels)
+		traits_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+		selection_content.add_child(traits_label)
+
+	var bonded_ids := s.bonded_with(r.id)
+	if not bonded_ids.is_empty():
+		var bond_names: Array[String] = []
+		for bid in bonded_ids:
+			var other := s.find_by_id(bid)
+			if other != null:
+				bond_names.append(other.given_name)
+		var bonds_label := Label.new()
+		bonds_label.text = "Vínculos: %s" % ", ".join(bond_names)
+		bonds_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+		selection_content.add_child(bonds_label)
+
+	var bio_label := Label.new()
+	bio_label.text = Story.bio(s, r)
+	bio_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	selection_content.add_child(bio_label)
 
 	if r.isolated:
 		var reintegrate_btn := Button.new()
