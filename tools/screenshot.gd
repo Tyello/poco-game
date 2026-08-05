@@ -19,6 +19,8 @@ func _init() -> void:
 	var turns := int(args[1]) if args.size() > 1 else 0
 	for i in range(turns):
 		inst.game.advance_turn()
+	if args.size() > 2 and args[2] != "":
+		inst._on_select_resident(inst.game.s.residents[0])
 	inst._render()
 
 	for i in range(6):

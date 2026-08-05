@@ -17,6 +17,8 @@ const PIP_ON := Palette.WARN
 const PIP_OFF := Palette.PANEL_RAISED
 const DANGER_COLOR := Palette.BAD
 
+const SECTOR_ICON := {"Ar": "wind", "Energia": "zap", "Comida": "wheat", "Água": "droplets"}
+
 const RES_GOOD_MIN := 50.0
 const RES_WARN_MIN := 25.0
 const SOCIAL_WARN_MIN := 35.0
@@ -150,7 +152,6 @@ func _build_hud_panel() -> void:
 	actions_box = HBoxContainer.new()
 	actions_box.add_theme_constant_override("separation", 6)
 	col.add_child(actions_box)
-	const SECTOR_ICON := {"Ar": "wind", "Energia": "zap", "Comida": "wheat", "Água": "droplets"}
 	for sys in Balance.SYSTEMS:
 		_add_action_button("Reparar %s" % sys, SECTOR_ICON.get(sys, ""), _on_patch.bind(sys))
 	_add_action_button("Acalmar", "shield", func(): _do(game.calm()))
@@ -630,6 +631,43 @@ func _chip_style(bg: Color, border: Color, border_width: int) -> StyleBoxFlat:
 		style.border_width_bottom = border_width
 	return style
 
+## Igual a _chip_style mas com tamanho arbitrário — usado no monograma
+## maior da ficha-dossiê.
+func _circle_style(size: int, bg: Color, border: Color, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.corner_radius_top_left = size / 2
+	style.corner_radius_top_right = size / 2
+	style.corner_radius_bottom_left = size / 2
+	style.corner_radius_bottom_right = size / 2
+	if border_width > 0:
+		style.border_color = border
+		style.border_width_left = border_width
+		style.border_width_right = border_width
+		style.border_width_top = border_width
+		style.border_width_bottom = border_width
+	return style
+
+## Pílula de texto curto (estado, traço) — fundo colorido, cantos totalmente
+## arredondados, padding horizontal folgado para não parecer um botão.
+func _pill(text: String, bg: Color, fg: Color = Palette.INK) -> Label:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_color_override("font_color", fg)
+	lbl.add_theme_font_size_override("font_size", 12)
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	lbl.add_theme_stylebox_override("normal", style)
+	return lbl
+
 ## Ficha clicável de um morador: monograma num círculo, colorido pelo
 ## estágio de verdade. Isolados mantêm a cor de fundo neutra mas ganham
 ## uma borda com a cor "de verdade" — dá para ver estado E isolamento na
@@ -699,74 +737,110 @@ func _render_selection() -> void:
 		selection_content.add_child(hint)
 		return
 
+	# --- cabeçalho: monograma num círculo + nome + posto/estrato ---
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
+	selection_content.add_child(header)
+
+	var monogram := Label.new()
+	monogram.text = r.given_name.substr(0, 2).to_upper()
+	monogram.custom_minimum_size = Vector2(44, 44)
+	monogram.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	monogram.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	monogram.add_theme_font_override("font", UiTheme.bold_font())
+	monogram.add_theme_font_size_override("font_size", 16)
+	monogram.add_theme_stylebox_override("normal", _circle_style(44, _state_color(r), Palette.SELECTED, 2))
+	header.add_child(monogram)
+
+	var name_col := VBoxContainer.new()
+	name_col.add_theme_constant_override("separation", 2)
+	header.add_child(name_col)
 	var name_label := Label.new()
 	name_label.text = r.full_name()
-	selection_content.add_child(name_label)
+	name_label.add_theme_font_override("font", UiTheme.bold_font())
+	name_label.add_theme_font_size_override("font_size", 16)
+	name_col.add_child(name_label)
 
+	var job_row := HBoxContainer.new()
+	job_row.add_theme_constant_override("separation", 4)
+	name_col.add_child(job_row)
 	var job_text := r.job if r.job != "" else "sobressalente"
+	if r.job != "" and SECTOR_ICON.has(r.job):
+		job_row.add_child(Icons.rect(SECTOR_ICON[r.job], Palette.INK_DIM, 13))
 	if r.stratum() != "":
 		job_text += " — %s" % r.stratum()
 	var info := Label.new()
 	info.text = job_text
-	info.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-	selection_content.add_child(info)
+	info.add_theme_color_override("font_color", Palette.INK_DIM)
+	job_row.add_child(info)
 
+	# --- estado de verdade (pílula) + humor ---
+	var status_row := HBoxContainer.new()
+	status_row.add_theme_constant_override("separation", 8)
+	selection_content.add_child(status_row)
 	var state_text := "sabe" if r.state == "sabe" else ("desconfia" if r.state == "desconfiada" else "tranquila")
-	var state_label := Label.new()
-	state_label.text = state_text + (" (isolada)" if r.isolated else "")
-	state_label.add_theme_color_override("font_color", _truth_color(r))
-	selection_content.add_child(state_label)
-
+	status_row.add_child(_pill(state_text + (" · isolada" if r.isolated else ""), _truth_color(r)))
 	var mood_label := Label.new()
 	mood_label.text = "Humor: %s" % r.mood()
-	mood_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
-	selection_content.add_child(mood_label)
+	mood_label.add_theme_color_override("font_color", Palette.INK_DIM)
+	status_row.add_child(mood_label)
 
 	if not r.traits.is_empty():
-		var trait_labels: Array[String] = []
+		selection_content.add_child(_hairline())
+		selection_content.add_child(_section_title("Traços"))
+		var traits_row := HFlowContainer.new()
+		traits_row.add_theme_constant_override("h_separation", 4)
+		traits_row.add_theme_constant_override("v_separation", 4)
+		selection_content.add_child(traits_row)
 		for t in r.traits:
-			trait_labels.append(Traits.label(t))
-		var traits_label := Label.new()
-		traits_label.text = "Traços: %s" % ", ".join(trait_labels)
-		traits_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-		selection_content.add_child(traits_label)
+			traits_row.add_child(_pill(Traits.label(t), Palette.PANEL_RAISED, Palette.INK))
 
 	var bonded_ids := s.bonded_with(r.id)
 	if not bonded_ids.is_empty():
-		var bond_names: Array[String] = []
+		selection_content.add_child(_hairline())
+		selection_content.add_child(_section_title("Vínculos"))
+		var bonds_row := HFlowContainer.new()
+		bonds_row.add_theme_constant_override("h_separation", 6)
+		bonds_row.add_theme_constant_override("v_separation", 4)
+		selection_content.add_child(bonds_row)
 		for bid in bonded_ids:
 			var other := s.find_by_id(bid)
 			if other != null:
-				bond_names.append(other.given_name)
-		var bonds_label := Label.new()
-		bonds_label.text = "Vínculos: %s" % ", ".join(bond_names)
-		bonds_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-		selection_content.add_child(bonds_label)
+				var bond_label := Label.new()
+				bond_label.text = other.given_name
+				bond_label.add_theme_color_override("font_color", Palette.SELECTED)
+				bond_label.add_theme_font_override("font", UiTheme.semibold_font())
+				bonds_row.add_child(bond_label)
 
+	selection_content.add_child(_hairline())
 	var bio_label := Label.new()
 	bio_label.text = Story.bio(s, r)
 	bio_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	bio_label.add_theme_constant_override("line_spacing", 4)
 	selection_content.add_child(bio_label)
 
+	var actions_row := VBoxContainer.new()
+	actions_row.add_theme_constant_override("separation", 4)
+	selection_content.add_child(actions_row)
+
 	if r.isolated:
-		var reintegrate_btn := Button.new()
-		reintegrate_btn.text = "Reintegrar"
+		var reintegrate_btn := _icon_button("Reintegrar", "shield-off")
 		reintegrate_btn.disabled = s.attention <= 0
 		reintegrate_btn.pressed.connect(_on_reintegrate.bind(r))
-		selection_content.add_child(reintegrate_btn)
+		actions_row.add_child(reintegrate_btn)
 	else:
-		var isolate_btn := Button.new()
-		isolate_btn.text = "Isolar"
+		var isolate_btn := _icon_button("Isolar", "shield")
 		isolate_btn.disabled = s.attention <= 0
 		isolate_btn.pressed.connect(_on_isolate.bind(r))
-		selection_content.add_child(isolate_btn)
+		actions_row.add_child(isolate_btn)
 
-	var exile_btn := Button.new()
-	exile_btn.text = "Exilar"
+	var exile_btn := _icon_button("Exilar", "skull")
 	exile_btn.disabled = s.attention <= 0
 	exile_btn.add_theme_stylebox_override("normal", _danger_style())
+	exile_btn.add_theme_stylebox_override("hover", _danger_style())
+	exile_btn.add_theme_color_override("font_color", Palette.SELECTED)
 	exile_btn.pressed.connect(_on_exile.bind(r))
-	selection_content.add_child(exile_btn)
+	actions_row.add_child(exile_btn)
 
 ## Painel de detalhe de um setor selecionado: detalhamento de produção
 ## (workers × rendimento − consumo, com os multiplicadores em destaque) e
