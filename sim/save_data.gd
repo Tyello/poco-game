@@ -13,6 +13,7 @@ static func to_dict(s: WorldState) -> Dictionary:
 		residents_data.append({
 			"id": r.id,
 			"name": r.given_name,
+			"surname": r.surname,
 			"job": r.job,
 			"state": r.state,
 			"isolated": r.isolated,
@@ -63,6 +64,7 @@ static func from_dict(raw: Dictionary) -> WorldState:
 	var residents: Array[Resident] = []
 	for rd in data.get("residents", []):
 		var r := Resident.new(int(rd["id"]), String(rd["name"]), String(rd["job"]))
+		r.surname = String(rd.get("surname", ""))
 		r.state = String(rd["state"])
 		r.isolated = bool(rd["isolated"])
 		var traits: Array[String] = []

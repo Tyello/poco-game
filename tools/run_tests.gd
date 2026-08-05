@@ -297,7 +297,7 @@ func _snapshot(s: WorldState) -> String:
 		"cons=%.5f" % s.cons_rate, "won=%s" % str(s.won), "over=%s" % str(s.over),
 	]
 	for r in s.residents:
-		parts.append("%d:%s:%s:%s:%s" % [r.id, r.job, r.state, str(r.isolated), ",".join(r.traits)])
+		parts.append("%d:%s:%s:%s:%s:%s:%s" % [r.id, r.job, r.state, str(r.isolated), ",".join(r.traits), r.given_name, r.surname])
 	return "|".join(parts)
 
 # --------------------------------------------------------- utilidades
