@@ -53,8 +53,8 @@ var end_panel: PanelContainer
 var end_label: RichTextLabel
 var root_layout: VBoxContainer
 var action_buttons: Array[Button] = []
-var parts_label: Label
 var selected_sector: String = ""
+var status_label: Label
 
 func _ready() -> void:
 	_build_ui()
@@ -151,8 +151,12 @@ func _build_hud_panel() -> void:
 	for sys in Balance.SYSTEMS:
 		_add_action_button("Reparar %s" % sys, _on_patch.bind(sys))
 	_add_action_button("Acalmar", func(): _do(game.calm()))
-	_add_free_button("Salvar", func(): game.save_game())
+	_add_free_button("Salvar", func(): _on_save())
 	_add_free_button("Carregar", func(): _on_load())
+
+	status_label = Label.new()
+	status_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65))
+	col.add_child(status_label)
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -170,8 +174,6 @@ func _build_hud_panel() -> void:
 
 	# --- título + medidores de recursos ---
 	col.add_child(_section_title("Recursos"))
-	parts_label = Label.new()
-	col.add_child(parts_label)
 	meters_box = HBoxContainer.new()
 	meters_box.add_theme_constant_override("separation", 12)
 	col.add_child(meters_box)
@@ -248,11 +250,18 @@ func _on_advance_turn() -> void:
 	game.advance_turn()
 	_render()
 
+func _on_save() -> void:
+	game.save_game()
+	status_label.text = "Jogo salvo."
+
 func _on_load() -> void:
 	if game.load_game():
 		s = game.s
 		selected_id = -1
 		_render()
+		status_label.text = "Jogo carregado."
+	else:
+		status_label.text = "Nenhum save encontrado."
 
 func _on_isolate(r: Resident) -> void:
 	game.isolate(r)
@@ -276,15 +285,15 @@ func _render() -> void:
 	for b in action_buttons:
 		b.disabled = s.attention <= 0
 
-	parts_label.text = "Peças: %d" % int(s.parts)
 	for c in meters_box.get_children():
 		c.queue_free()
 	for sys in Balance.SYSTEMS:
 		meters_box.add_child(_build_meter(sys, s.res[sys], false))
+	meters_box.add_child(_build_meter("Peças", s.parts, false, Balance.UPGRADE_PARTS_COST))
 
 	for c in suspicion_bar_holder.get_children():
 		c.queue_free()
-	suspicion_bar_holder.add_child(_build_meter("Suspeita", s.suspicion, true))
+	suspicion_bar_holder.add_child(_build_meter("Suspeita", s.suspicion, true, 100.0))
 
 	for c in rebellion_bar_holder.get_children():
 		c.queue_free()
@@ -322,7 +331,7 @@ func _render() -> void:
 	else:
 		root_layout.visible = true
 
-func _build_meter(label_text: String, value: float, inverted: bool) -> Control:
+func _build_meter(label_text: String, value: float, inverted: bool, max_value: float = Balance.RES_MAX) -> Control:
 	var box := VBoxContainer.new()
 	box.custom_minimum_size = Vector2(90, 0)
 	var name_label := Label.new()
@@ -330,7 +339,7 @@ func _build_meter(label_text: String, value: float, inverted: bool) -> Control:
 	box.add_child(name_label)
 	var bar := ProgressBar.new()
 	bar.min_value = 0.0
-	bar.max_value = Balance.RES_MAX
+	bar.max_value = max_value
 	bar.value = value
 	bar.show_percentage = false
 	bar.modulate = _meter_color(value, inverted)
@@ -354,7 +363,7 @@ func _build_rebellion_meter() -> Control:
 
 	var bar := ProgressBar.new()
 	bar.min_value = 0.0
-	bar.max_value = Balance.RES_MAX
+	bar.max_value = 100.0
 	bar.value = s.rebellion
 	bar.show_percentage = false
 	bar.modulate = _meter_color(s.rebellion, true)
@@ -367,7 +376,7 @@ func _build_rebellion_meter() -> Control:
 	floor_mark.custom_minimum_size = Vector2(2, 0)
 	floor_mark.anchor_top = 0.0
 	floor_mark.anchor_bottom = 1.0
-	var floor_ratio := clampf(s.martyr_floor / Balance.RES_MAX, 0.0, 1.0)
+	var floor_ratio := clampf(s.martyr_floor / 100.0, 0.0, 1.0)
 	floor_mark.anchor_left = floor_ratio
 	floor_mark.anchor_right = floor_ratio
 	bar_stack.add_child(floor_mark)

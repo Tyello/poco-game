@@ -46,6 +46,7 @@ func _run_all() -> void:
 	test_upgrade_guards()
 	test_production_breakdown_consistency()
 	test_save_load_parts_and_upgrades()
+	test_parts_trickle_per_turn()
 
 # --------------------------------------------------------------- testes
 
@@ -388,6 +389,15 @@ func test_save_load_parts_and_upgrades() -> void:
 	var loaded := SaveData.from_dict(data)
 	_check(is_equal_approx(loaded.parts, 12.5), "save/load preserva WorldState.parts")
 	_check(loaded.sector_upgrades.get("Ar", 0) == 2 and loaded.sector_upgrades.get("Água", 0) == 1, "save/load preserva WorldState.sector_upgrades")
+
+func test_parts_trickle_per_turn() -> void:
+	var g := SimGame.new()
+	var s := g.new_game(7)
+	for i in 3:
+		if s.over:
+			break
+		g.advance_turn()
+	_check(is_equal_approx(s.parts, Balance.PARTS_PER_TURN * 3), "Peças acumulam Balance.PARTS_PER_TURN a cada advance_turn()")
 
 func _snapshot(s: WorldState) -> String:
 	var bits := [

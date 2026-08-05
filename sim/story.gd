@@ -69,7 +69,7 @@ static func on_calm_moment(s: WorldState, r: Resident) -> String:
 static func bio(s: WorldState, r: Resident) -> String:
 	var lines: Array[String] = []
 	if r.job != "":
-		lines.append("%s trabalha no posto de %s, no estrato dos(as) %s." % [r.given_name, r.job, r.stratum()])
+		lines.append("%s trabalha no posto de %s, no estrato %s." % [r.given_name, r.job, r.stratum()])
 	else:
 		lines.append("%s não tem posto fixo — cobre quem falta, onde for preciso." % r.given_name)
 	lines.append(_bio_trait_line(r))
