@@ -23,12 +23,14 @@ const SOCIAL_WARN_MIN := 35.0
 const SOCIAL_BAD_MIN := 60.0
 
 ## Estratos do Poço, do topo ao fundo. "" = sem sistema de recurso (a Coroa).
+## "group" agrupa vários andares sob um mesmo cabeçalho de estrato (Parte D:
+## corte lateral com mais andares — ver docs/10 Parte D).
 const STRATA := [
-	{"sys": "", "title": "A Coroa", "tint": Color(0.11, 0.14, 0.20)},
-	{"sys": "Comida", "title": "Os Meios — Fazendas", "tint": Color(0.11, 0.17, 0.13)},
-	{"sys": "Água", "title": "Os Meios — Reservatório", "tint": Color(0.11, 0.17, 0.13)},
-	{"sys": "Ar", "title": "Os Meios — Filtragem", "tint": Color(0.11, 0.17, 0.13)},
-	{"sys": "Energia", "title": "As Entranhas — Gerador", "tint": Color(0.20, 0.16, 0.10)},
+	{"sys": "", "title": "A Coroa", "tint": Color(0.11, 0.14, 0.20), "group": "A Coroa"},
+	{"sys": "Comida", "title": "Fazendas", "tint": Color(0.11, 0.17, 0.13), "group": "Os Meios"},
+	{"sys": "Água", "title": "Reservatório", "tint": Color(0.11, 0.17, 0.13), "group": "Os Meios"},
+	{"sys": "Ar", "title": "Filtragem", "tint": Color(0.11, 0.17, 0.13), "group": "Os Meios"},
+	{"sys": "Energia", "title": "Gerador", "tint": Color(0.20, 0.16, 0.10), "group": "As Entranhas"},
 ]
 
 var game: SimGame
@@ -296,7 +298,12 @@ func _render() -> void:
 
 	for c in well_column.get_children():
 		c.queue_free()
+	var last_group := ""
 	for stratum in STRATA:
+		var group: String = stratum["group"]
+		if group != last_group:
+			well_column.add_child(_build_stratum_header(group, stratum["tint"]))
+			last_group = group
 		well_column.add_child(_build_floor(stratum["sys"], stratum["title"], stratum["tint"]))
 	well_column.add_child(_build_reserve_panel())
 
@@ -408,6 +415,21 @@ func _floor_style(tint: Color, crisis: bool) -> StyleBoxFlat:
 	style.content_margin_top = 8
 	style.content_margin_bottom = 8
 	return style
+
+## Cabeçalho de estrato (Parte D): agrupa visualmente vários andares sob
+## "Coroa / Os Meios / As Entranhas", preservando a legibilidade "num
+## relance" do docs/05 mesmo com mais andares por estrato.
+func _build_stratum_header(title: String, tint: Color) -> Control:
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 2)
+	margin.add_theme_constant_override("margin_left", 4)
+	var label := Label.new()
+	label.text = title.to_upper()
+	label.add_theme_font_size_override("font_size", 13)
+	label.add_theme_color_override("font_color", tint.lerp(Color.WHITE, 0.55))
+	margin.add_child(label)
+	return margin
 
 ## Um andar-setor da coluna do Poço. sys == "" monta a Coroa (sem recurso,
 ## só alerta da verdade + última linha do registro).
