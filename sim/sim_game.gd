@@ -22,17 +22,32 @@ func new_game(seed_value: int = 0) -> WorldState:
 	s.rng = SeededRng.new(seed_value)
 	s.res = Balance.RES_START.duplicate()
 	s.residents = []
+	var staffed := Balance.BASE_STAFF * Balance.SYSTEMS.size()
 	for i in Balance.POP_SIZE:
 		var job := ""
-		if i < 9:
-			job = Balance.SYSTEMS[i % 3]
+		if i < staffed:
+			job = Balance.SYSTEMS[i % Balance.SYSTEMS.size()]
 		s.residents.append(Resident.new(i, Balance.NAMES[i], job))
-	for idx in Balance.SEED_KNOWERS:
-		s.residents[idx].state = "sabe"
+	_seed_knowers()
 	_assign_traits()
 	_generate_bonds()
 	s.log_lines.append("Dois moradores já sabem demais. A mentira envelhece a cada turno.")
 	return s
+
+## Sorteia Balance.SEED_KNOWERS_COUNT moradores distintos para já começarem
+## sabendo, determinístico via s.rng.
+func _seed_knowers() -> void:
+	var ids: Array[int] = []
+	for r in s.residents:
+		ids.append(r.id)
+	var chosen := {}
+	var guard := 0
+	while chosen.size() < Balance.SEED_KNOWERS_COUNT and guard < 200:
+		guard += 1
+		var id = s.rng.pick(ids)
+		chosen[id] = true
+	for id in chosen:
+		s.find_by_id(id).state = "sabe"
 
 ## Sorteia 1-2 traços por morador, determinístico via s.rng.
 func _assign_traits() -> void:
@@ -218,11 +233,16 @@ func advance_turn() -> void:
 		var t3 = s.rng.pick(oks2)
 		t3.state = "desconfiada"
 		_log("%s notou uma inconsistência e começou a desconfiar." % t3.given_name)
-	for r in s.residents_where("desconfiada", false):
-		if s.rng.chance(self_adv):
-			r.state = "sabe"
-			_log("%s juntou as peças sozinha — agora sabe." % r.given_name)
-			_story(Story.on_knows(s, r))
+	# Rolagens fixas (não por cabeça) — como em SPREAD/SPONT — para que a
+	# pressão de auto-avanço não escale com o tamanho da população, só com
+	# o turno (Balance.SELF_GROW). Ver Parte A (docs/10).
+	for _roll2 in Balance.SELF_ROLLS:
+		var doubters2 := s.residents_where("desconfiada", false)
+		if not doubters2.is_empty() and s.rng.chance(self_adv):
+			var t5 = s.rng.pick(doubters2)
+			t5.state = "sabe"
+			_log("%s juntou as peças sozinha — agora sabe." % t5.given_name)
+			_story(Story.on_knows(s, t5))
 
 	# 2c. Isolados vazam boatos ("os que somem")
 	var iso := s.residents_where("sabe", true)

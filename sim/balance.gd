@@ -2,25 +2,40 @@ class_name Balance
 extends RefCounted
 
 ## TODOS os números de balanceamento vivem aqui (design data-driven).
-## Valores calibrados por ~15 mil partidas automáticas + playtest do
-## protótipo. Ver docs/02_GDD (seção 15) para a justificativa de cada um.
 ## Ajuste aqui para retunar o jogo — nunca espalhe constantes pelo código.
+##
+## ESCALA-ALVO (Fase 4, Parte A): POP_SIZE=24, 3 setores (Ar/Energia/Comida),
+## MAX_TURN=16. Recalibrado por tools/balance_sweep.gd (600 partidas/estratégia)
+## até bater a forma-alvo do GDD §15.4 (resultado final do sweep):
+##   ignora_verdade 1.2% (<15% ok) | so_isola 42.8% | so_acalma 61.7% (ambos
+##   35–65% ok) | exila_serie 19.7% (funciona, mas arriscado — derrota
+##   dominada por rebelião) | misto 64.0% (o mais alto — caminho de mestre).
+## Ver o comentário de cabeçalho de tools/balance_sweep.gd para o método.
+## Qualquer mudança de POP_SIZE/SYSTEMS/MAX_TURN exige rodar o sweep de novo.
 
 # --- Turno / partida ---
 const ATTENTION_PER_TURN := 3
-const MAX_TURN := 14
+const MAX_TURN := 16
 
 # --- Sistemas e recursos ---
+# RES_MAX/RES_START/LOW_RES_THRESHOLD escalados por BASE_STAFF/3 (~2.33x):
+# o teto de recursos precisa crescer junto com produção/consumo, senão o
+# excedente do início do jogo é desperdiçado no clamp e não sobra reserva
+# pra fase final (onde suspeita + escalada de consumo apertam mais).
 const SYSTEMS := ["Ar", "Energia", "Comida"]
 const YIELD_PER_WORKER := {"Ar": 8.0, "Energia": 8.0, "Comida": 7.5}
-const RES_START := {"Ar": 64.0, "Energia": 62.0, "Comida": 60.0}
-const RES_MAX := 100.0
+const RES_START := {"Ar": 149.0, "Energia": 145.0, "Comida": 140.0}
+const RES_MAX := 235.0
 
 # --- População ---
-const POP_SIZE := 10
-const BASE_STAFF := 3            # trabalhadores "cheios" por sistema
-const SEED_KNOWERS := [4, 7]     # índices que já começam sabendo
-const NAMES := ["Marta", "Nael", "Bruno", "Cléo", "Ivo", "Rosa", "Dante", "Lena", "Ciro", "Vera"]
+const POP_SIZE := 24
+const BASE_STAFF := 7            # trabalhadores "cheios" por sistema
+const SEED_KNOWERS_COUNT := 3    # nº de moradores que já começam sabendo (sorteado via rng)
+const NAMES := [
+	"Marta", "Nael", "Bruno", "Cléo", "Ivo", "Rosa", "Dante", "Lena", "Ciro", "Vera",
+	"Tomé", "Alba", "Renato", "Sônia", "Judite", "Otávio", "Flor", "Bento", "Iris", "Caio",
+	"Nina", "Elias", "Marisa", "Gil",
+]
 
 # --- Economia ---
 const SUS_START := 8.0
@@ -30,8 +45,11 @@ const SUS_PENALTY_DIV := 175.0   # penalidade de produção = 1 - suspeita/DIV
 const SUS_PENALTY_FLOOR := 0.15  # produção nunca cai abaixo de 15%
 
 # --- Ações ---
-const PATCH_AMOUNT := 8.0
-const CALM_BASE := 14            # suspeita reduzida por "acalmar"
+# PATCH_AMOUNT escalado com BASE_STAFF (7/3 do valor original 8.0): a
+# produção/consumo total cresce com a população, então o reparo precisa
+# manter o mesmo poder de resgate RELATIVO, não o mesmo valor absoluto.
+const PATCH_AMOUNT := 19.0
+const CALM_BASE := 9             # suspeita reduzida por "acalmar"
 const CALM_MIN := 5              # piso do efeito (rende menos a cada uso)
 
 # --- Difusão da verdade ---
@@ -42,13 +60,17 @@ const SPONT_BASE := 0.05         # pressão de base: alguém desconfia sozinho
 const SPONT_GROW := 0.015        # ...e cresce a cada turno ("a mentira envelhece")
 const SELF_BASE := 0.05          # desconfiado vira "sabe" sozinho
 const SELF_GROW := 0.008
-const ISO_LEAK_SUS := 1.5        # cada isolado que sabe vaza boatos (suspeita/turno)
-const ISO_LEAK_CONVERT := 0.15   # ...e pode gerar um desconfiado
+const SELF_ROLLS := 2            # rolagens fixas/turno (não por cabeça — ver Parte A)
+const ISO_LEAK_SUS := 0.4        # cada isolado que sabe vaza boatos (suspeita/turno) — escalado como SUS_PER_KNOWER
+const ISO_LEAK_CONVERT := 0.08   # ...e pode gerar um desconfiado
 
 # --- Suspeita ---
-const SUS_PER_KNOWER := 2.5
-const SUS_PER_DOUBTER := 1.0
-const LOW_RES_THRESHOLD := 40.0
+# Contribuição por CABEÇA (não por fração da população) — escalada para
+# POP_SIZE=24 a partir do valor original calibrado para 10 (2.5 / 1.0),
+# senão populações maiores geram suspeita bruta demais só pelo tamanho.
+const SUS_PER_KNOWER := 1.2
+const SUS_PER_DOUBTER := 0.5
+const LOW_RES_THRESHOLD := 93.0
 const LOW_RES_SUS := 3.0
 const SUS_DECAY_BELOW := 25.0
 const SUS_DECAY := 2.0

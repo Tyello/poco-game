@@ -38,6 +38,7 @@ func _run_all() -> void:
 	test_exile_prioritizes_bond()
 	test_save_load_roundtrip()
 	test_save_version_defaults_to_1()
+	test_population_deterministic()
 
 # --------------------------------------------------------------- testes
 
@@ -45,9 +46,13 @@ func test_initial_state() -> void:
 	var g := SimGame.new()
 	var s := g.new_game(1)
 	_check(s.residents.size() == Balance.POP_SIZE, "população inicial = %d" % Balance.POP_SIZE)
-	_check(s.count_state("sabe") == 2, "duas sementes de verdade")
-	_check(s.attention == Balance.ATTENTION_PER_TURN, "3 ações por turno")
-	_check(s.active_workers("Ar") == 3 and s.active_workers("Energia") == 3 and s.active_workers("Comida") == 3, "3 trabalhadores por sistema")
+	_check(s.count_state("sabe") == Balance.SEED_KNOWERS_COUNT, "%d sementes de verdade" % Balance.SEED_KNOWERS_COUNT)
+	_check(s.attention == Balance.ATTENTION_PER_TURN, "%d ações por turno" % Balance.ATTENTION_PER_TURN)
+	var staff_ok := true
+	for sys in Balance.SYSTEMS:
+		if s.active_workers(sys) != Balance.BASE_STAFF:
+			staff_ok = false
+	_check(staff_ok, "%d trabalhadores por sistema" % Balance.BASE_STAFF)
 
 func test_production_math() -> void:
 	var g := SimGame.new()
@@ -238,6 +243,20 @@ func test_save_version_defaults_to_1() -> void:
 	d.erase("save_version")
 	var s2 := SaveData.from_dict(d)
 	_check(s2 != null and s2.residents.size() == s.residents.size(), "carregar save sem save_version não quebra (assume v1)")
+
+## Mesma seed -> mesma população/postos/vínculos, na escala atual de
+## Balance.POP_SIZE (a escala é const em tempo de compilação; ver Parte A).
+func test_population_deterministic() -> void:
+	var g1 := SimGame.new()
+	var s1 := g1.new_game(9)
+	var g2 := SimGame.new()
+	var s2 := g2.new_game(9)
+	var same := true
+	for i in s1.residents.size():
+		if s1.residents[i].job != s2.residents[i].job or s1.residents[i].state != s2.residents[i].state:
+			same = false
+	_check(same, "mesma seed produz os mesmos postos/estágios (escala atual: %d moradores)" % Balance.POP_SIZE)
+	_check(s1.bonds == s2.bonds, "mesma seed produz os mesmos vínculos na escala atual")
 
 func _snapshot(s: WorldState) -> String:
 	var parts := [
